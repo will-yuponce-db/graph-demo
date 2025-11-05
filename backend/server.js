@@ -146,24 +146,38 @@ async function readFromDatabricks() {
     const edges = [];
 
     result.forEach((row) => {
-      // Add source node
+      // Parse properties safely
+      let startProps = {};
+      let endProps = {};
+      try {
+        startProps = JSON.parse(row.node_start_properties || '{}');
+      } catch (e) {
+        console.warn(`Failed to parse node_start_properties for ${row.node_start_id}:`, e.message);
+      }
+      try {
+        endProps = JSON.parse(row.node_end_properties || '{}');
+      } catch (e) {
+        console.warn(`Failed to parse node_end_properties for ${row.node_end_id}:`, e.message);
+      }
+
+      // Add source node (use node_start_key as the type, which appears to be the entity type)
       if (!nodesMap.has(row.node_start_id)) {
         nodesMap.set(row.node_start_id, {
           id: row.node_start_id,
-          label: row.node_start_key,
-          type: 'Unknown', // Databricks table doesn't store node type separately
-          properties: JSON.parse(row.node_start_properties || '{}'),
+          label: row.node_start_id, // Use ID as label
+          type: row.node_start_key || 'Unknown', // node_start_key is the entity type (e.g., "Customer")
+          properties: startProps,
           status: 'existing',
         });
       }
 
-      // Add target node
+      // Add target node (use node_end_key as the type)
       if (!nodesMap.has(row.node_end_id)) {
         nodesMap.set(row.node_end_id, {
           id: row.node_end_id,
-          label: row.node_end_key,
-          type: 'Unknown',
-          properties: JSON.parse(row.node_end_properties || '{}'),
+          label: row.node_end_id, // Use ID as label
+          type: row.node_end_key || 'Unknown', // node_end_key is the entity type (e.g., "Account")
+          properties: endProps,
           status: 'existing',
         });
       }
@@ -278,6 +292,7 @@ app.get('/api/graph', async (req, res) => {
   const startTime = Date.now();
   let nodes, edges;
   let source = 'SQLite';
+  let databricksError = null;
 
   try {
     // Try Databricks first if configured
@@ -295,6 +310,7 @@ app.get('/api/graph', async (req, res) => {
         const dbDuration = Date.now() - dbStartTime;
         console.error(`   ❌ Databricks read FAILED (${dbDuration}ms): ${dbError.message}`);
         console.warn('   ⚠️  Falling back to SQLite...');
+        databricksError = dbError.message;
 
         // Fall back to SQLite
         console.log('   💾 Reading from SQLite...');
@@ -316,7 +332,13 @@ app.get('/api/graph', async (req, res) => {
     res.json({
       nodes,
       edges,
-      source,
+      metadata: {
+        source,
+        databricksEnabled: DATABRICKS_ENABLED,
+        databricksError,
+        timestamp: new Date().toISOString(),
+        duration: `${duration}ms`,
+      },
     });
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -324,6 +346,13 @@ app.get('/api/graph', async (req, res) => {
     res.status(500).json({
       error: 'Failed to fetch graph data',
       message: error.message,
+      metadata: {
+        source: 'error',
+        databricksEnabled: DATABRICKS_ENABLED,
+        databricksError: databricksError,
+        timestamp: new Date().toISOString(),
+        duration: `${duration}ms`,
+      },
     });
   }
 });
@@ -406,6 +435,13 @@ app.post('/api/graph', async (req, res) => {
       jobId: `job_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       writtenNodes: nodes.length,
       writtenEdges: edges.length,
+      metadata: {
+        source: target,
+        databricksEnabled: DATABRICKS_ENABLED,
+        databricksError: writeError,
+        timestamp: new Date().toISOString(),
+        duration: `${totalDuration}ms`,
+      },
     });
   } catch (error) {
     const totalDuration = Date.now() - startTime;
@@ -413,6 +449,13 @@ app.post('/api/graph', async (req, res) => {
     res.status(500).json({
       success: false,
       message: `Failed to write to database: ${error.message}`,
+      metadata: {
+        source: 'error',
+        databricksEnabled: DATABRICKS_ENABLED,
+        databricksError: writeError,
+        timestamp: new Date().toISOString(),
+        duration: `${totalDuration}ms`,
+      },
     });
   }
 });

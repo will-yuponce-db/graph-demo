@@ -64,7 +64,7 @@ const GraphVisualizationPage: React.FC = () => {
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
-    severity: 'success' | 'error' | 'info';
+    severity: 'success' | 'error' | 'info' | 'warning';
   }>({
     open: false,
     message: '',
@@ -104,19 +104,31 @@ const GraphVisualizationPage: React.FC = () => {
     const useBackend = import.meta.env.VITE_USE_BACKEND_API !== 'false';
 
     try {
-      const data = await fetchGraphData();
-      setInitialData(data);
-      editor.resetToInitialData(data);
+      const response = await fetchGraphData();
+      setInitialData({ nodes: response.nodes, edges: response.edges });
+      editor.resetToInitialData({ nodes: response.nodes, edges: response.edges });
+
+      // Log metadata from backend (includes source database and any errors)
+      if (response.metadata) {
+        console.log('📊 Database Metadata:', response.metadata);
+      }
 
       // Determine if we're using mock data
-      setIsUsingMockData(!useBackend);
+      setIsUsingMockData(!useBackend || response.metadata?.source === 'Mock Data');
+
+      // Build message with metadata
+      let message = `Loaded ${response.nodes.length} nodes and ${response.edges.length} edges`;
+      if (response.metadata) {
+        message += ` from ${response.metadata.source}`;
+        if (response.metadata.databricksError) {
+          message += ` (Databricks unavailable: ${response.metadata.databricksError})`;
+        }
+      }
 
       setSnackbar({
         open: true,
-        message: useBackend
-          ? `Loaded ${data.nodes.length} nodes and ${data.edges.length} edges from backend`
-          : `Using mock data: ${data.nodes.length} nodes and ${data.edges.length} edges`,
-        severity: useBackend ? 'success' : 'info',
+        message,
+        severity: response.metadata?.databricksError ? 'warning' : useBackend ? 'success' : 'info',
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load graph data';

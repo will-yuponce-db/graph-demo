@@ -36,12 +36,24 @@ const USE_BACKEND_API = import.meta.env.VITE_USE_BACKEND_API !== 'false';
 export const fetchGraphData = async (): Promise<{
   nodes: GraphNode[];
   edges: GraphEdge[];
+  metadata?: {
+    source: string;
+    databricksEnabled: boolean;
+    databricksError: string | null;
+    timestamp?: string;
+    duration?: string;
+  };
 }> => {
   if (!USE_BACKEND_API) {
     console.log('📊 Using mock data (backend disabled via VITE_USE_BACKEND_API=false)');
     return {
       nodes: mockGraphData.nodes,
       edges: mockGraphData.edges,
+      metadata: {
+        source: 'Mock Data',
+        databricksEnabled: false,
+        databricksError: null,
+      },
     };
   }
 
@@ -54,11 +66,23 @@ export const fetchGraphData = async (): Promise<{
     }
 
     const data = await response.json();
-    console.log(`✓ Fetched ${data.nodes.length} nodes and ${data.edges.length} edges from backend`);
+    console.log(
+      `✓ Fetched ${data.nodes.length} nodes and ${data.edges.length} edges from ${data.metadata?.source || 'backend'}`
+    );
+
+    if (data.metadata) {
+      console.log(
+        `📊 Source: ${data.metadata.source} | Databricks: ${data.metadata.databricksEnabled ? 'Enabled' : 'Disabled'}`
+      );
+      if (data.metadata.databricksError) {
+        console.warn(`⚠️  Databricks Error: ${data.metadata.databricksError}`);
+      }
+    }
 
     return {
       nodes: data.nodes,
       edges: data.edges,
+      metadata: data.metadata,
     };
   } catch (error) {
     console.error('Error fetching from backend API:', error);
@@ -124,6 +148,17 @@ export const writeToTable = async (
     }
 
     const result = await response.json();
+
+    // Log metadata information
+    if (result.metadata) {
+      console.log(
+        `📊 Write Target: ${result.metadata.source} | Duration: ${result.metadata.duration}`
+      );
+      if (result.metadata.databricksError) {
+        console.warn(`⚠️  Databricks Error: ${result.metadata.databricksError}`);
+      }
+    }
+
     return result;
   } catch (error) {
     console.error('Error writing to backend API:', error);
