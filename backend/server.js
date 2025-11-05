@@ -117,8 +117,8 @@ try {
 
 // Databricks Configuration - uses environment variables from Databricks Apps
 const DATABRICKS_CONFIG = {
-  host: process.env.DATABRICKS_HOST || 'e2-demo-field-eng.cloud.databricks.com',
-  path: process.env.DATABRICKS_HTTP_PATH || '/sql/1.0/warehouses/862f1d757f0424f7',
+  host: process.env.DATABRICKS_HOST || 'e2-demo-west.cloud.databricks.com',
+  path: process.env.DATABRICKS_HTTP_PATH || '/sql/1.0/warehouses/75fd8278393d07eb',
   token: '', // Using service principal instead
   clientId: process.env.DATABRICKS_CLIENT_ID,
   clientSecret: process.env.DATABRICKS_CLIENT_SECRET,
