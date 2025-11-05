@@ -100,8 +100,8 @@ const GraphVisualizationPage: React.FC = () => {
     setIsLoadingData(true);
     setDataError(null);
 
-    // Check if backend API is configured
-    const useBackend = import.meta.env.VITE_USE_BACKEND_API === 'true';
+    // Check if backend API is configured (matches graphApi.ts logic)
+    const useBackend = import.meta.env.VITE_USE_BACKEND_API !== 'false';
 
     try {
       const data = await fetchGraphData();
