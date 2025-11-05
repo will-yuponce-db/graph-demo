@@ -330,6 +330,12 @@ app.get('/api/graph', async (req, res) => {
     );
 
     res.json({
+      success: true,
+      source,
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError,
+      timestamp: new Date().toISOString(),
+      duration: `${duration}ms`,
       nodes,
       edges,
       metadata: {
@@ -344,12 +350,18 @@ app.get('/api/graph', async (req, res) => {
     const duration = Date.now() - startTime;
     console.error(`❌ [GET /api/graph] Error: ${error.message} (${duration}ms)\n`);
     res.status(500).json({
+      success: false,
       error: 'Failed to fetch graph data',
       message: error.message,
+      source: 'error',
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: databricksError || error.message,
+      timestamp: new Date().toISOString(),
+      duration: `${duration}ms`,
       metadata: {
         source: 'error',
         databricksEnabled: DATABRICKS_ENABLED,
-        databricksError: databricksError,
+        databricksError: databricksError || error.message,
         timestamp: new Date().toISOString(),
         duration: `${duration}ms`,
       },
@@ -431,6 +443,11 @@ app.post('/api/graph', async (req, res) => {
     res.json({
       success: true,
       message,
+      source: target,
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: writeError,
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
       target,
       jobId: `job_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       writtenNodes: nodes.length,
@@ -449,10 +466,15 @@ app.post('/api/graph', async (req, res) => {
     res.status(500).json({
       success: false,
       message: `Failed to write to database: ${error.message}`,
+      source: 'error',
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: writeError || error.message,
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
       metadata: {
         source: 'error',
         databricksEnabled: DATABRICKS_ENABLED,
-        databricksError: writeError,
+        databricksError: writeError || error.message,
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
       },
