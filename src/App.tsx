@@ -12,12 +12,13 @@ const App: React.FC = () => {
         <Box
           sx={{
             position: 'fixed',
-            top: 24,
+            bottom: 24,
             right: 24,
-            zIndex: 1400,
+            zIndex: 9999,
             backgroundColor: 'background.paper',
             borderRadius: 1,
-            boxShadow: 2,
+            boxShadow: 3,
+            padding: 0.5,
           }}
         >
           <ThemeToggle />

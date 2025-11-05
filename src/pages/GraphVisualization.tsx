@@ -311,7 +311,7 @@ const GraphVisualizationPage: React.FC = () => {
   const hasProposedChanges = newNodesCount > 0 || newEdgesCount > 0;
 
   return (
-    <Container maxWidth={false} sx={{ minHeight: '100vh', py: 3, pr: { xs: 3, sm: 12 } }}>
+    <Container maxWidth={false} sx={{ minHeight: '100vh', py: 3 }}>
       <Box sx={{ mb: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
           <Box>
