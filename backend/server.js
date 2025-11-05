@@ -261,7 +261,7 @@ async function createDatabricksConnection(userAccessToken = null) {
     });
     return connection;
   } catch (error) {
-    logger.databricks('ERROR', {
+    const errorDetails = {
       operation: 'connection',
       status: 'failed',
       authType,
@@ -271,7 +271,17 @@ async function createDatabricksConnection(userAccessToken = null) {
       errorCode: error.code,
       sqlState: error.sqlState,
       errorClass: error.errorClass,
-    });
+    };
+
+    // Add helpful context for permission errors
+    if (error.statusCode === 403 || error.message?.includes('403')) {
+      errorDetails.hint =
+        authType === 'user_token'
+          ? 'User does not have permission to access SQL Warehouse. Grant CAN USE on warehouse.'
+          : 'Service principal does not have permission. Grant warehouse access to app service principal.';
+    }
+
+    logger.databricks('ERROR', errorDetails);
     throw error;
   }
 }
