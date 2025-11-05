@@ -125,8 +125,8 @@ const DATABRICKS_CONFIG = {
 
 const TABLE_NAME = process.env.DATABRICKS_TABLE || 'main.default.property_graph_entity_edges';
 
-// Check if Databricks is configured
-const DATABRICKS_ENABLED = !!DATABRICKS_CONFIG.clientId && !!DATABRICKS_CONFIG.clientSecret;
+// Note: Databricks authentication now uses ONLY user OAuth tokens
+// from X-Forwarded-Access-Token header (provided by Databricks Apps)
 
 /**
  * Sanitize error messages for client responses
@@ -204,67 +204,55 @@ logger.info({
   port: PORT,
   sqlite: 'enabled',
   databricks: {
-    enabled: DATABRICKS_ENABLED,
+    authMode: 'user_oauth_only',
     host: DATABRICKS_CONFIG.host,
     table: TABLE_NAME,
     path: DATABRICKS_CONFIG.path,
-    clientId: DATABRICKS_CONFIG.clientId ? 'configured' : 'missing',
-    clientSecret: DATABRICKS_CONFIG.clientSecret ? 'configured' : 'missing',
+    note: 'Requires X-Forwarded-Access-Token header from Databricks Apps',
   },
 });
 
 /**
- * Create a Databricks SQL connection
- * @param {string} userAccessToken - Optional user access token from X-Forwarded-Access-Token header
+ * Create a Databricks SQL connection using User OAuth ONLY
+ * @param {string} userAccessToken - Required user access token from X-Forwarded-Access-Token header
  */
-async function createDatabricksConnection(userAccessToken = null) {
-  if (!DATABRICKS_ENABLED) {
-    throw new Error('Databricks not configured');
+async function createDatabricksConnection(userAccessToken) {
+  if (!userAccessToken) {
+    throw new Error('User access token required - app must be accessed through Databricks Apps');
   }
-
-  const authType = userAccessToken ? 'user_token' : 'service_principal';
 
   logger.databricks(logger.info.level, {
     operation: 'connection',
     status: 'attempting',
     host: DATABRICKS_CONFIG.host,
     path: DATABRICKS_CONFIG.path,
-    authType,
+    authType: 'user_oauth',
   });
 
   try {
     const client = new DBSQLClient();
 
-    // Use user's access token if available (for user-level permissions)
-    // Otherwise fall back to service principal (for app-level operations)
+    // OAuth2: User's access token ONLY (from X-Forwarded-Access-Token header)
+    // All operations execute with user's identity and permissions
     const connectionConfig = {
       host: DATABRICKS_CONFIG.host,
       path: DATABRICKS_CONFIG.path,
+      token: userAccessToken,
     };
-
-    if (userAccessToken) {
-      // OAuth2: User's access token (from X-Forwarded-Access-Token header)
-      connectionConfig.token = userAccessToken;
-    } else {
-      // OAuth2: Service Principal (M2M) - Client Credentials flow
-      // Don't pass token when using clientId/clientSecret
-      connectionConfig.clientId = DATABRICKS_CONFIG.clientId;
-      connectionConfig.clientSecret = DATABRICKS_CONFIG.clientSecret;
-    }
 
     const connection = await client.connect(connectionConfig);
 
     logger.databricks('INFO', {
       operation: 'connection',
       status: 'success',
-      authType,
+      authType: 'user_oauth',
     });
     return connection;
   } catch (error) {
     const errorDetails = {
       operation: 'connection',
       status: 'failed',
-      authType,
+      authType: 'user_oauth',
       error: error.message,
       errorType: error.constructor.name,
       statusCode: error.statusCode,
@@ -276,9 +264,8 @@ async function createDatabricksConnection(userAccessToken = null) {
     // Add helpful context for permission errors
     if (error.statusCode === 403 || error.message?.includes('403')) {
       errorDetails.hint =
-        authType === 'user_token'
-          ? 'User does not have permission to access SQL Warehouse. Grant CAN USE on warehouse.'
-          : 'Service principal does not have permission. Grant warehouse access to app service principal.';
+        'User does not have permission to access SQL Warehouse. Grant CAN USE permission to the user.';
+      errorDetails.grantCommand = `GRANT USE ON WAREHOUSE \`Shared Endpoint\` TO \`user@example.com\`;`;
     }
 
     logger.databricks('ERROR', errorDetails);
@@ -287,14 +274,10 @@ async function createDatabricksConnection(userAccessToken = null) {
 }
 
 /**
- * Read graph data from Databricks
- * @param {string} userAccessToken - Optional user access token
+ * Read graph data from Databricks using user's OAuth token
+ * @param {string} userAccessToken - Required user access token
  */
-async function readFromDatabricks(userAccessToken = null) {
-  if (!DATABRICKS_ENABLED) {
-    throw new Error('Databricks not configured');
-  }
-
+async function readFromDatabricks(userAccessToken) {
   let connection;
 
   try {
@@ -396,16 +379,12 @@ async function readFromDatabricks(userAccessToken = null) {
 }
 
 /**
- * Write nodes and edges to Databricks
+ * Write nodes and edges to Databricks using user's OAuth token
  * @param {Array} nodes - Nodes to write
  * @param {Array} edges - Edges to write
- * @param {string} userAccessToken - Optional user access token
+ * @param {string} userAccessToken - Required user access token
  */
-async function writeToDatabricks(nodes, edges, userAccessToken = null) {
-  if (!DATABRICKS_ENABLED) {
-    throw new Error('Databricks not configured');
-  }
-
+async function writeToDatabricks(nodes, edges, userAccessToken) {
   let connection;
 
   try {
@@ -521,13 +500,13 @@ app.get('/api/graph', async (req, res) => {
   }
 
   try {
-    // Try Databricks first if configured
-    if (DATABRICKS_ENABLED) {
+    // Try Databricks only if user token is available
+    if (userAccessToken) {
       try {
         const data = await readFromDatabricks(userAccessToken);
         nodes = data.nodes;
         edges = data.edges;
-        source = userAccessToken ? 'Databricks (user auth)' : 'Databricks (service principal)';
+        source = 'Databricks (user auth)';
       } catch (dbError) {
         databricksError = dbError.message;
         logger.warn({
@@ -658,11 +637,11 @@ app.post('/api/graph', async (req, res) => {
   }
 
   try {
-    // Try writing to Databricks first if configured
-    if (DATABRICKS_ENABLED) {
+    // Try writing to Databricks only if user token is available
+    if (userAccessToken) {
       try {
         await writeToDatabricks(nodes, edges, userAccessToken);
-        target = userAccessToken ? 'Databricks (user auth)' : 'Databricks (service principal)';
+        target = 'Databricks (user auth)';
       } catch (error) {
         writeError = error.message;
         logger.warn({
@@ -989,6 +968,7 @@ app.listen(PORT, () => {
     database: {
       sqlite: { nodes: nodeCount, edges: edgeCount },
     },
-    dataStrategy: DATABRICKS_ENABLED ? 'Databricks primary with SQLite fallback' : 'SQLite only',
+    dataStrategy: 'Databricks (user OAuth) with SQLite fallback',
+    authMode: 'User identity passthrough only',
   });
 });
