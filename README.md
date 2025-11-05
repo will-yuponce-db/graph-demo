@@ -133,6 +133,17 @@ This is a boilerplate template - feel free to customize it for your needs!
 
 MIT - Use this boilerplate however you'd like!
 
+## 🛠️ Code Quality
+
+This project includes automated code quality tools:
+
+- **ESLint** - Linting for TypeScript and React
+- **Prettier** - Code formatting
+- **Husky** - Pre-commit hooks
+- **lint-staged** - Run linters on staged files only
+
+All code is automatically linted and formatted before each commit. See [DEVELOPMENT.md](DEVELOPMENT.md) for more details.
+
 ## 🎯 Next Steps
 
 - Add your business logic
