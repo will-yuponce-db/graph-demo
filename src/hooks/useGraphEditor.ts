@@ -274,43 +274,29 @@ export function useGraphEditor({ initialData }: UseGraphEditorOptions): UseGraph
 
   // Mark items as saved (change status from NEW to EXISTING)
   const markItemsAsSaved = useCallback((nodeIds: string[], edgeIds: string[]) => {
-    // Move user-created nodes to original data with EXISTING status
+    // Collect the saved items before state updates
+    let savedNodes: GraphNode[] = [];
+    let savedEdges: GraphEdge[] = [];
+
+    // Update user-created nodes
     setUserCreatedNodes((prev) => {
-      const savedNodes = prev.filter((n) => nodeIds.includes(n.id));
-      const remainingNodes = prev.filter((n) => !nodeIds.includes(n.id));
-
-      // Add saved nodes to original data
-      if (savedNodes.length > 0) {
-        setOriginalData((data) => ({
-          ...data,
-          nodes: [
-            ...data.nodes,
-            ...savedNodes.map((n) => ({ ...n, status: ChangeStatus.EXISTING })),
-          ],
-        }));
-      }
-
-      return remainingNodes;
+      savedNodes = prev.filter((n) => nodeIds.includes(n.id));
+      return prev.filter((n) => !nodeIds.includes(n.id));
     });
 
-    // Move user-created edges to original data with EXISTING status
+    // Update user-created edges
     setUserCreatedEdges((prev) => {
-      const savedEdges = prev.filter((e) => edgeIds.includes(e.id));
-      const remainingEdges = prev.filter((e) => !edgeIds.includes(e.id));
-
-      // Add saved edges to original data
-      if (savedEdges.length > 0) {
-        setOriginalData((data) => ({
-          ...data,
-          edges: [
-            ...data.edges,
-            ...savedEdges.map((e) => ({ ...e, status: ChangeStatus.EXISTING })),
-          ],
-        }));
-      }
-
-      return remainingEdges;
+      savedEdges = prev.filter((e) => edgeIds.includes(e.id));
+      return prev.filter((e) => !edgeIds.includes(e.id));
     });
+
+    // Add saved items to original data with EXISTING status (in a single update)
+    if (savedNodes.length > 0 || savedEdges.length > 0) {
+      setOriginalData((data) => ({
+        nodes: [...data.nodes, ...savedNodes.map((n) => ({ ...n, status: ChangeStatus.EXISTING }))],
+        edges: [...data.edges, ...savedEdges.map((e) => ({ ...e, status: ChangeStatus.EXISTING }))],
+      }));
+    }
   }, []);
 
   // Reset to new initial data (e.g., after refetch from backend)

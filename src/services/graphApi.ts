@@ -208,6 +208,54 @@ export const checkJobStatus = async (
 };
 
 /**
+ * Update the status of nodes and edges in the database
+ * Called after successful save to mark items as EXISTING
+ */
+export const updateItemsStatus = async (
+  nodeIds: string[],
+  edgeIds: string[],
+  status: string
+): Promise<{ success: boolean; message: string }> => {
+  if (!USE_BACKEND_API) {
+    // In mock mode, just return success
+    return {
+      success: true,
+      message: `Mock: Updated ${nodeIds.length + edgeIds.length} items to ${status}`,
+    };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/graph/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        nodeIds,
+        edgeIds,
+        status,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend API returned ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return {
+      success: result.success,
+      message: result.message,
+    };
+  } catch (error) {
+    console.error('Error updating item status:', error);
+    return {
+      success: false,
+      message: `Failed to update status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
+  }
+};
+
+/**
  * Utility to prepare write request payload
  */
 export const prepareWriteRequest = (

@@ -27,7 +27,7 @@ import NodePalette from '../components/NodePalette';
 import { NodeForm, EdgeForm } from '../components/NodeEdgeForm';
 import { useGraphEditor } from '../hooks/useGraphEditor';
 import type { GraphData, GraphStats, GraphNode, GraphEdge } from '../types/graph';
-import { writeToTable, fetchGraphData } from '../services/graphApi';
+import { writeToTable, fetchGraphData, updateItemsStatus } from '../services/graphApi';
 import { ChangeStatus } from '../types/graph';
 
 // Helper function to calculate graph stats
@@ -293,16 +293,23 @@ const GraphVisualizationPage: React.FC = () => {
       const result = await writeToTable(editor.userCreatedNodes, editor.userCreatedEdges);
 
       if (result.success) {
+        // Get IDs of items being saved
+        const nodeIds = editor.userCreatedNodes.map((n) => n.id);
+        const edgeIds = editor.userCreatedEdges.map((e) => e.id);
+
+        // Update status in database
+        if (nodeIds.length > 0 || edgeIds.length > 0) {
+          await updateItemsStatus(nodeIds, edgeIds, ChangeStatus.EXISTING);
+        }
+
+        // Mark items as saved in local state
+        editor.markItemsAsSaved(nodeIds, edgeIds);
+
         setSnackbar({
           open: true,
           message: `${result.message}`,
           severity: 'success',
         });
-
-        // Mark items as saved (update their status to EXISTING)
-        const nodeIds = editor.userCreatedNodes.map((n) => n.id);
-        const edgeIds = editor.userCreatedEdges.map((e) => e.id);
-        editor.markItemsAsSaved(nodeIds, edgeIds);
       } else {
         setSnackbar({
           open: true,
