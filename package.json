@@ -11,7 +11,6 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "preview": "vite preview",
-    "prepare": "husky",
     "start": "npm run build && cd backend && npm install && npm run seed-if-empty && node server.js"
   },
   "lint-staged": {
