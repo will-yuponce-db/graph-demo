@@ -216,39 +216,55 @@ logger.info({
 
 /**
  * Create a Databricks SQL connection
+ * @param {string} userAccessToken - Optional user access token from X-Forwarded-Access-Token header
  */
-async function createDatabricksConnection() {
+async function createDatabricksConnection(userAccessToken = null) {
   if (!DATABRICKS_ENABLED) {
     throw new Error('Databricks not configured');
   }
+
+  const authType = userAccessToken ? 'user_token' : 'service_principal';
 
   logger.databricks(logger.info.level, {
     operation: 'connection',
     status: 'attempting',
     host: DATABRICKS_CONFIG.host,
     path: DATABRICKS_CONFIG.path,
+    authType,
   });
 
   try {
     const client = new DBSQLClient();
 
-    const connection = await client.connect({
-      host: DATABRICKS_CONFIG.host,
-      path: DATABRICKS_CONFIG.path,
-      token: DATABRICKS_CONFIG.token,
-      clientId: DATABRICKS_CONFIG.clientId,
-      clientSecret: DATABRICKS_CONFIG.clientSecret,
-    });
+    // Use user's access token if available (for user-level permissions)
+    // Otherwise fall back to service principal (for app-level operations)
+    const connectionConfig = userAccessToken
+      ? {
+          host: DATABRICKS_CONFIG.host,
+          path: DATABRICKS_CONFIG.path,
+          token: userAccessToken, // User's token from X-Forwarded-Access-Token
+        }
+      : {
+          host: DATABRICKS_CONFIG.host,
+          path: DATABRICKS_CONFIG.path,
+          token: DATABRICKS_CONFIG.token,
+          clientId: DATABRICKS_CONFIG.clientId,
+          clientSecret: DATABRICKS_CONFIG.clientSecret,
+        };
+
+    const connection = await client.connect(connectionConfig);
 
     logger.databricks('INFO', {
       operation: 'connection',
       status: 'success',
+      authType,
     });
     return connection;
   } catch (error) {
     logger.databricks('ERROR', {
       operation: 'connection',
       status: 'failed',
+      authType,
       error: error.message,
       errorType: error.constructor.name,
       statusCode: error.statusCode,
@@ -262,8 +278,9 @@ async function createDatabricksConnection() {
 
 /**
  * Read graph data from Databricks
+ * @param {string} userAccessToken - Optional user access token
  */
-async function readFromDatabricks() {
+async function readFromDatabricks(userAccessToken = null) {
   if (!DATABRICKS_ENABLED) {
     throw new Error('Databricks not configured');
   }
@@ -271,7 +288,7 @@ async function readFromDatabricks() {
   let connection;
 
   try {
-    connection = await createDatabricksConnection();
+    connection = await createDatabricksConnection(userAccessToken);
     const session = await connection.openSession();
 
     const query = `SELECT * FROM ${TABLE_NAME}`;
@@ -370,8 +387,11 @@ async function readFromDatabricks() {
 
 /**
  * Write nodes and edges to Databricks
+ * @param {Array} nodes - Nodes to write
+ * @param {Array} edges - Edges to write
+ * @param {string} userAccessToken - Optional user access token
  */
-async function writeToDatabricks(nodes, edges) {
+async function writeToDatabricks(nodes, edges, userAccessToken = null) {
   if (!DATABRICKS_ENABLED) {
     throw new Error('Databricks not configured');
   }
@@ -379,7 +399,7 @@ async function writeToDatabricks(nodes, edges) {
   let connection;
 
   try {
-    connection = await createDatabricksConnection();
+    connection = await createDatabricksConnection(userAccessToken);
     const session = await connection.openSession();
 
     // For each edge, insert a row into the table with both nodes
@@ -459,6 +479,7 @@ async function writeToDatabricks(nodes, edges) {
 /**
  * GET /api/graph
  * Fetch graph data - tries Databricks first, falls back to SQLite
+ * Uses user's access token if available (X-Forwarded-Access-Token header)
  */
 app.get('/api/graph', async (req, res) => {
   const startTime = Date.now();
@@ -466,14 +487,26 @@ app.get('/api/graph', async (req, res) => {
   let source = 'SQLite';
   let databricksError = null;
 
+  // Extract user's access token from Databricks Apps header
+  const userAccessToken = req.headers['x-forwarded-access-token'];
+  const userEmail = req.headers['x-forwarded-email'];
+
+  if (userAccessToken) {
+    logger.info({
+      type: 'user_auth',
+      email: userEmail,
+      hasToken: true,
+    });
+  }
+
   try {
     // Try Databricks first if configured
     if (DATABRICKS_ENABLED) {
       try {
-        const data = await readFromDatabricks();
+        const data = await readFromDatabricks(userAccessToken);
         nodes = data.nodes;
         edges = data.edges;
-        source = 'Databricks';
+        source = userAccessToken ? 'Databricks (user auth)' : 'Databricks (service principal)';
       } catch (dbError) {
         databricksError = dbError.message;
         logger.warn({
@@ -555,6 +588,7 @@ app.get('/api/graph', async (req, res) => {
  * POST /api/graph
  * Write new nodes and edges to database
  * Tries Databricks first, falls back to SQLite on failure
+ * Uses user's access token if available (X-Forwarded-Access-Token header)
  */
 app.post('/api/graph', async (req, res) => {
   const { nodes, edges } = req.body;
@@ -579,12 +613,24 @@ app.post('/api/graph', async (req, res) => {
   let target = 'SQLite';
   let writeError = null;
 
+  // Extract user's access token from Databricks Apps header
+  const userAccessToken = req.headers['x-forwarded-access-token'];
+  const userEmail = req.headers['x-forwarded-email'];
+
+  if (userAccessToken) {
+    logger.info({
+      type: 'user_auth',
+      email: userEmail,
+      hasToken: true,
+    });
+  }
+
   try {
     // Try writing to Databricks first if configured
     if (DATABRICKS_ENABLED) {
       try {
-        await writeToDatabricks(nodes, edges);
-        target = 'Databricks';
+        await writeToDatabricks(nodes, edges, userAccessToken);
+        target = userAccessToken ? 'Databricks (user auth)' : 'Databricks (service principal)';
       } catch (error) {
         writeError = error.message;
         logger.warn({
