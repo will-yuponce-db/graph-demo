@@ -55,12 +55,21 @@ const GraphVisualizationPage: React.FC = () => {
   const [showProposed, setShowProposed] = useState(true);
   const [selectedNodeTypes, setSelectedNodeTypes] = useState<string[]>([]);
   const [selectedRelationshipTypes, setSelectedRelationshipTypes] = useState<string[]>([]);
+  const [showNodeLabels, setShowNodeLabels] = useState(false);
+  const [showEdgeLabels, setShowEdgeLabels] = useState(false);
+  const [edgeLength, setEdgeLength] = useState(80);
+  const [nodeSize, setNodeSize] = useState(6);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialData, setInitialData] = useState<GraphData>({ nodes: [], edges: [] });
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
   const [isUsingMockData, setIsUsingMockData] = useState(false);
+  const [dbMetadata, setDbMetadata] = useState<{
+    source?: string;
+    databricksEnabled?: boolean;
+    databricksError?: string | null;
+  }>({});
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -111,6 +120,7 @@ const GraphVisualizationPage: React.FC = () => {
       // Log metadata from backend (includes source database and any errors)
       if (response.metadata) {
         console.log('📊 Database Metadata:', response.metadata);
+        setDbMetadata(response.metadata);
       }
 
       // Determine if we're using mock data
@@ -165,15 +175,9 @@ const GraphVisualizationPage: React.FC = () => {
   };
 
   // Node creation from palette
-  const handleStartCreateNode = (nodeType: string) => {
+  const handleStartCreateNode = () => {
     setNodeFormMode('create');
-    setNodeFormInitialData({
-      id: '',
-      label: '',
-      type: nodeType,
-      status: ChangeStatus.NEW,
-      properties: {},
-    });
+    setNodeFormInitialData(undefined);
     setNodeFormOpen(true);
   };
 
@@ -383,7 +387,14 @@ const GraphVisualizationPage: React.FC = () => {
               </>
             ) : (
               <>
-                <strong>Connected:</strong> Backend API → SQLite (with Databricks sync)
+                <strong>Connected:</strong> Backend API →{' '}
+                {dbMetadata.databricksEnabled ? 'Databricks (with SQLite fallback)' : 'SQLite only'}
+                {dbMetadata.databricksError && (
+                  <>
+                    <br />
+                    <small>⚠️ Databricks unavailable: {dbMetadata.databricksError}</small>
+                  </>
+                )}
               </>
             )}
           </Typography>
@@ -457,6 +468,10 @@ const GraphVisualizationPage: React.FC = () => {
                   showProposed={showProposed}
                   selectedNodeTypes={selectedNodeTypes}
                   selectedRelationshipTypes={selectedRelationshipTypes}
+                  showNodeLabels={showNodeLabels}
+                  showEdgeLabels={showEdgeLabels}
+                  edgeLength={edgeLength}
+                  nodeSize={nodeSize}
                   width={graphDimensions.width - 32}
                   height={graphDimensions.height - 100}
                   onNodeClick={(nodeId) => {
@@ -471,7 +486,6 @@ const GraphVisualizationPage: React.FC = () => {
                       handleEdgeEdit(edgeId);
                     }
                   }}
-                  onNodeDrop={handleStartCreateNode}
                   edgeCreateMode={editor.isEdgeCreateMode}
                   edgeCreateSourceId={editor.edgeCreateSourceId}
                   selectedNodeId={editor.selectedNodeId}
@@ -490,6 +504,14 @@ const GraphVisualizationPage: React.FC = () => {
             onNodeTypeChange={setSelectedNodeTypes}
             selectedRelationshipTypes={selectedRelationshipTypes}
             onRelationshipTypeChange={setSelectedRelationshipTypes}
+            showNodeLabels={showNodeLabels}
+            onToggleNodeLabels={setShowNodeLabels}
+            showEdgeLabels={showEdgeLabels}
+            onToggleEdgeLabels={setShowEdgeLabels}
+            edgeLength={edgeLength}
+            onEdgeLengthChange={setEdgeLength}
+            nodeSize={nodeSize}
+            onNodeSizeChange={setNodeSize}
             onResetView={handleResetView}
             stats={stats}
           />

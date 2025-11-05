@@ -179,9 +179,9 @@ const result = await writeToTable(nodes, edges);
 ### Backend Connected Mode
 
 - **Trigger:** `VITE_USE_BACKEND_API=true` + backend server running
-- **Behavior:** Fetches live data from Databricks via backend API
-- **UI:** Blue info banner "Connected: Backend API → Databricks"
-- **Best For:** Production use with real data
+- **Behavior:** Reads and writes to Databricks first, falls back to SQLite if unavailable
+- **UI:** Blue info banner "Connected: Backend API → Databricks (with SQLite fallback)"
+- **Best For:** Production use with real data and automatic resilience
 - **Setup:** Requires backend server (see `backend/README.md`)
 
 ### Fallback Mode

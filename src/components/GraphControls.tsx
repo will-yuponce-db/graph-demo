@@ -11,11 +11,13 @@ import {
   Stack,
   FormGroup,
   Checkbox,
+  Slider,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
+  Label as LabelIcon,
 } from '@mui/icons-material';
 import { NodeType, RelationshipType } from '../types/graph';
 
@@ -26,6 +28,14 @@ interface GraphControlsProps {
   onNodeTypeChange: (types: string[]) => void;
   selectedRelationshipTypes: string[];
   onRelationshipTypeChange: (types: string[]) => void;
+  showNodeLabels: boolean;
+  onToggleNodeLabels: (show: boolean) => void;
+  showEdgeLabels: boolean;
+  onToggleEdgeLabels: (show: boolean) => void;
+  edgeLength: number;
+  onEdgeLengthChange: (length: number) => void;
+  nodeSize: number;
+  onNodeSizeChange: (size: number) => void;
   onResetView: () => void;
   stats: {
     totalNodes: number;
@@ -42,6 +52,14 @@ const GraphControls: React.FC<GraphControlsProps> = ({
   onNodeTypeChange,
   selectedRelationshipTypes,
   onRelationshipTypeChange,
+  showNodeLabels,
+  onToggleNodeLabels,
+  showEdgeLabels,
+  onToggleEdgeLabels,
+  edgeLength,
+  onEdgeLengthChange,
+  nodeSize,
+  onNodeSizeChange,
   onResetView,
   stats,
 }) => {
@@ -115,21 +133,97 @@ const GraphControls: React.FC<GraphControlsProps> = ({
       <Typography variant="h6" gutterBottom>
         Visibility
       </Typography>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={showProposed}
-            onChange={(e) => onToggleProposed(e.target.checked)}
-            color="success"
-          />
-        }
-        label={
-          <Box display="flex" alignItems="center" gap={1}>
-            {showProposed ? <VisibilityIcon /> : <VisibilityOffIcon />}
-            <Typography variant="body2">Show Proposed Changes</Typography>
-          </Box>
-        }
-      />
+      <FormGroup>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={showProposed}
+              onChange={(e) => onToggleProposed(e.target.checked)}
+              color="success"
+            />
+          }
+          label={
+            <Box display="flex" alignItems="center" gap={1}>
+              {showProposed ? <VisibilityIcon /> : <VisibilityOffIcon />}
+              <Typography variant="body2">Show Proposed Changes</Typography>
+            </Box>
+          }
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={showNodeLabels}
+              onChange={(e) => onToggleNodeLabels(e.target.checked)}
+              color="primary"
+            />
+          }
+          label={
+            <Box display="flex" alignItems="center" gap={1}>
+              <LabelIcon />
+              <Typography variant="body2">Show Node Labels</Typography>
+            </Box>
+          }
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={showEdgeLabels}
+              onChange={(e) => onToggleEdgeLabels(e.target.checked)}
+              color="primary"
+            />
+          }
+          label={
+            <Box display="flex" alignItems="center" gap={1}>
+              <LabelIcon />
+              <Typography variant="body2">Show Edge Labels</Typography>
+            </Box>
+          }
+        />
+      </FormGroup>
+
+      <Divider sx={{ my: 2 }} />
+
+      {/* Edge Length Slider */}
+      <Typography variant="h6" gutterBottom>
+        Layout
+      </Typography>
+      <Box sx={{ px: 1 }}>
+        <Typography variant="body2" gutterBottom>
+          Edge Length
+        </Typography>
+        <Slider
+          value={edgeLength}
+          onChange={(_, value) => onEdgeLengthChange(value as number)}
+          min={30}
+          max={200}
+          step={10}
+          marks={[
+            { value: 30, label: 'Close' },
+            { value: 80, label: 'Default' },
+            { value: 200, label: 'Far' },
+          ]}
+          valueLabelDisplay="auto"
+          sx={{ mb: 2 }}
+        />
+
+        <Typography variant="body2" gutterBottom>
+          Node Size
+        </Typography>
+        <Slider
+          value={nodeSize}
+          onChange={(_, value) => onNodeSizeChange(value as number)}
+          min={3}
+          max={15}
+          step={1}
+          marks={[
+            { value: 3, label: 'Small' },
+            { value: 6, label: 'Default' },
+            { value: 15, label: 'Large' },
+          ]}
+          valueLabelDisplay="auto"
+          sx={{ mb: 1 }}
+        />
+      </Box>
 
       <Divider sx={{ my: 2 }} />
 

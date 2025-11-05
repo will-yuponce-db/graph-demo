@@ -9,11 +9,14 @@ interface GraphVisualizationProps {
   showProposed: boolean;
   selectedNodeTypes: string[];
   selectedRelationshipTypes: string[];
+  showNodeLabels?: boolean;
+  showEdgeLabels?: boolean;
+  edgeLength?: number;
+  nodeSize?: number;
   width?: number;
   height?: number;
   onNodeClick?: (nodeId: string) => void;
   onEdgeClick?: (edgeId: string) => void;
-  onNodeDrop?: (nodeType: string) => void;
   edgeCreateMode?: boolean;
   edgeCreateSourceId?: string | null;
   selectedNodeId?: string | null;
@@ -24,11 +27,14 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
   showProposed,
   selectedNodeTypes,
   selectedRelationshipTypes,
+  showNodeLabels = false,
+  showEdgeLabels = false,
+  edgeLength = 80,
+  nodeSize = 6,
   width = 800,
   height = 600,
   onNodeClick,
   onEdgeClick,
-  onNodeDrop,
   edgeCreateMode = false,
   edgeCreateSourceId = null,
   selectedNodeId = null,
@@ -100,7 +106,7 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
       type: node.type,
       status: node.status,
       properties: node.properties,
-      val: node.status === ChangeStatus.NEW ? 8 : 5,
+      val: node.status === ChangeStatus.NEW ? nodeSize * 1.3 : nodeSize,
     }));
 
     const forceLinks: ForceGraphLink[] = filteredEdges.map((edge) => ({
@@ -113,7 +119,22 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
     }));
 
     setGraphData({ nodes: forceNodes, links: forceLinks });
-  }, [data, showProposed, selectedNodeTypes, selectedRelationshipTypes]);
+  }, [data, showProposed, selectedNodeTypes, selectedRelationshipTypes, nodeSize]);
+
+  // Configure d3 forces to spread nodes farther apart
+  useEffect(() => {
+    if (graphRef.current) {
+      // Set link distance based on slider value
+      graphRef.current.d3Force('link')?.distance(edgeLength);
+
+      // Adjust charge strength proportionally to edge length for better layout
+      const chargeStrength = -(edgeLength * 2.5);
+      graphRef.current.d3Force('charge')?.strength(chargeStrength);
+
+      // Restart the simulation with new forces
+      graphRef.current.d3ReheatSimulation();
+    }
+  }, [graphData, edgeLength]);
 
   const handleNodeHover = useCallback((node: ForceGraphNode | null) => {
     setHoveredNode(node);
@@ -145,7 +166,7 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (node: any, ctx: CanvasRenderingContext2D) => {
       const label = node.name;
-      const fontSize = 12;
+      const fontSize = 11;
       const nodeRadius = node.val || 5;
 
       // Draw node circle
@@ -161,15 +182,42 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
         ctx.stroke();
       }
 
-      // Draw label
-      ctx.font = `${fontSize}px Sans-Serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = theme.palette.text.primary;
-      ctx.fillText(label, node.x, node.y + nodeRadius + 12);
+      // Determine if label should be shown
+      const isHovered = hoveredNode && hoveredNode.id === node.id;
+      const isSelected = selectedNodeId && selectedNodeId === node.id;
+      const isEdgeCreateSource = edgeCreateMode && edgeCreateSourceId === node.id;
+      const shouldShowLabel = showNodeLabels || isHovered || isSelected || isEdgeCreateSource;
+
+      // Draw label only when appropriate
+      if (shouldShowLabel) {
+        ctx.font = `${fontSize}px Sans-Serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Measure text for background
+        const textMetrics = ctx.measureText(label);
+        const textWidth = textMetrics.width;
+        const textHeight = fontSize;
+        const padding = 4;
+        const labelY = node.y + nodeRadius + 12;
+
+        // Draw semi-transparent background
+        ctx.fillStyle =
+          theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.85)';
+        ctx.fillRect(
+          node.x - textWidth / 2 - padding,
+          labelY - textHeight / 2 - padding,
+          textWidth + padding * 2,
+          textHeight + padding * 2
+        );
+
+        // Draw text
+        ctx.fillStyle = theme.palette.text.primary;
+        ctx.fillText(label, node.x, labelY);
+      }
 
       // Highlight hovered node
-      if (hoveredNode && hoveredNode.id === node.id) {
+      if (isHovered) {
         ctx.beginPath();
         ctx.arc(node.x, node.y, nodeRadius + 3, 0, 2 * Math.PI);
         ctx.strokeStyle = theme.palette.primary.main;
@@ -178,7 +226,7 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
       }
 
       // Highlight selected node
-      if (selectedNodeId && selectedNodeId === node.id) {
+      if (isSelected) {
         ctx.beginPath();
         ctx.arc(node.x, node.y, nodeRadius + 4, 0, 2 * Math.PI);
         ctx.strokeStyle = theme.palette.secondary.main;
@@ -187,7 +235,7 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
       }
 
       // Highlight source node in edge create mode
-      if (edgeCreateMode && edgeCreateSourceId === node.id) {
+      if (isEdgeCreateSource) {
         ctx.beginPath();
         ctx.arc(node.x, node.y, nodeRadius + 5, 0, 2 * Math.PI);
         ctx.strokeStyle = theme.palette.success.main;
@@ -195,7 +243,15 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
         ctx.stroke();
       }
     },
-    [hoveredNode, theme, getNodeColor, selectedNodeId, edgeCreateMode, edgeCreateSourceId]
+    [
+      hoveredNode,
+      theme,
+      getNodeColor,
+      selectedNodeId,
+      edgeCreateMode,
+      edgeCreateSourceId,
+      showNodeLabels,
+    ]
   );
 
   const paintLink = useCallback(
@@ -235,25 +291,39 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
       ctx.closePath();
       ctx.fillStyle = getLinkColor(link);
       ctx.fill();
-    },
-    [getLinkColor]
-  );
 
-  // Handle drag and drop from palette
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-  }, []);
+      // Draw edge label if enabled
+      if (showEdgeLabels && link.relationshipType) {
+        const midX = (start.x + end.x) / 2;
+        const midY = (start.y + end.y) / 2;
+        const label = link.relationshipType;
+        const fontSize = 10;
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const nodeType = e.dataTransfer.getData('nodeType');
-      if (nodeType && onNodeDrop) {
-        onNodeDrop(nodeType);
+        ctx.font = `${fontSize}px Sans-Serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Measure text for background
+        const textMetrics = ctx.measureText(label);
+        const textWidth = textMetrics.width;
+        const padding = 3;
+
+        // Draw semi-transparent background
+        ctx.fillStyle =
+          theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.9)';
+        ctx.fillRect(
+          midX - textWidth / 2 - padding,
+          midY - fontSize / 2 - padding,
+          textWidth + padding * 2,
+          fontSize + padding * 2
+        );
+
+        // Draw text
+        ctx.fillStyle = theme.palette.text.secondary;
+        ctx.fillText(label, midX, midY);
       }
     },
-    [onNodeDrop]
+    [getLinkColor, showEdgeLabels, theme]
   );
 
   return (
@@ -267,8 +337,6 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
           overflow: 'hidden',
           cursor: edgeCreateMode ? 'crosshair' : 'default',
         }}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
       >
         <ForceGraph2D
           ref={graphRef}
@@ -286,6 +354,8 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
           enablePanInteraction={true}
           cooldownTicks={100}
           onEngineStop={() => graphRef.current?.zoomToFit(400, 50)}
+          d3AlphaDecay={0.02}
+          d3VelocityDecay={0.3}
         />
       </Box>
 

@@ -1,7 +1,9 @@
 /**
  * Express Backend Server for Graph Database with Databricks Integration
  *
- * This server uses SQLite as the primary data store and syncs to Databricks when available.
+ * This server uses Databricks as the primary data store with SQLite as a fallback.
+ * - Reads: Try Databricks first, fallback to SQLite if unavailable
+ * - Writes: Try Databricks first, fallback to SQLite if unavailable
  * It provides a REST API for the React frontend to manage graph data.
  *
  * Setup:
@@ -131,10 +133,10 @@ console.log('🔧 SERVER CONFIGURATION');
 console.log('═══════════════════════════════════════════════════════════');
 console.log('  Environment:', process.env.NODE_ENV || 'development');
 console.log('  Port:', PORT);
-console.log('  SQLite Database: ✓ Enabled (primary store)');
+console.log('  SQLite Database: ✓ Enabled (fallback/cache)');
 console.log('\n📊 DATABRICKS CONFIGURATION:');
 if (DATABRICKS_ENABLED) {
-  console.log('  Status: ✅ ENABLED - Will sync to Databricks');
+  console.log('  Status: ✅ ENABLED - Primary data store');
   console.log('  Host:', DATABRICKS_CONFIG.host);
   console.log('  Client ID:', DATABRICKS_CONFIG.clientId ? '✓ Configured' : '✗ Missing');
   console.log('  Client Secret:', DATABRICKS_CONFIG.clientSecret ? '✓ Configured' : '✗ Missing');
@@ -671,10 +673,9 @@ app.listen(PORT, () => {
   console.log(`  SQLite: ${nodeCount} nodes, ${edgeCount} edges loaded`);
 
   if (DATABRICKS_ENABLED) {
-    console.log('\n  🎯 DATA STRATEGY: Databricks Primary, SQLite Fallback');
-    console.log(`     → Reads from Databricks when available`);
-    console.log(`     → Writes to Databricks when available`);
-    console.log(`     → Falls back to SQLite if Databricks unavailable`);
+    console.log('\n  🎯 DATA STRATEGY: Databricks Primary → SQLite Fallback');
+    console.log(`     → Reads: Databricks first, SQLite fallback`);
+    console.log(`     → Writes: Databricks first, SQLite fallback`);
   } else {
     console.log('\n  🎯 DATA STRATEGY: SQLite only (Databricks disabled)');
   }

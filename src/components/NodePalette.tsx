@@ -1,100 +1,40 @@
 import React from 'react';
 import { Paper, Typography, Box, Button, Stack, Divider, Tooltip } from '@mui/material';
-import {
-  Person as PersonIcon,
-  Business as BusinessIcon,
-  Inventory as ProductIcon,
-  Place as LocationIcon,
-  Link as LinkIcon,
-} from '@mui/icons-material';
-import { NodeType } from '../types/graph';
+import { AddCircleOutline as AddNodeIcon, Link as LinkIcon } from '@mui/icons-material';
 
 interface NodePaletteProps {
-  onStartCreateNode?: (nodeType: string) => void;
+  onStartCreateNode?: () => void;
   onStartCreateEdge: () => void;
   isEdgeCreateMode: boolean;
   disabled?: boolean;
 }
 
-const nodeTypeConfig = {
-  [NodeType.PERSON]: {
-    icon: <PersonIcon />,
-    color: '#1976d2',
-    description: 'Add a person node',
-  },
-  [NodeType.COMPANY]: {
-    icon: <BusinessIcon />,
-    color: '#7b1fa2',
-    description: 'Add a company node',
-  },
-  [NodeType.PRODUCT]: {
-    icon: <ProductIcon />,
-    color: '#f57c00',
-    description: 'Add a product node',
-  },
-  [NodeType.LOCATION]: {
-    icon: <LocationIcon />,
-    color: '#c62828',
-    description: 'Add a location node',
-  },
-};
-
 const NodePalette: React.FC<NodePaletteProps> = ({
+  onStartCreateNode,
   onStartCreateEdge,
   isEdgeCreateMode,
   disabled = false,
 }) => {
-  const [draggedType, setDraggedType] = React.useState<string | null>(null);
-
-  const handleDragStart = (nodeType: string) => (e: React.DragEvent) => {
-    setDraggedType(nodeType);
-    e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('nodeType', nodeType);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedType(null);
-  };
-
   return (
     <Paper sx={{ p: 2, height: '100%', overflow: 'auto' }}>
       <Typography variant="h6" gutterBottom>
-        Node Palette
-      </Typography>
-
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Drag node types onto the canvas to create new nodes
+        Create
       </Typography>
 
       <Stack spacing={1.5}>
-        {Object.entries(nodeTypeConfig).map(([nodeType, config]) => (
-          <Tooltip key={nodeType} title={config.description} placement="right">
-            <Button
-              variant="outlined"
-              draggable={!disabled}
-              onDragStart={handleDragStart(nodeType)}
-              onDragEnd={handleDragEnd}
-              disabled={disabled}
-              startIcon={config.icon}
-              sx={{
-                justifyContent: 'flex-start',
-                borderColor: config.color,
-                color: config.color,
-                opacity: draggedType === nodeType ? 0.5 : 1,
-                cursor: disabled ? 'not-allowed' : 'grab',
-                '&:active': {
-                  cursor: disabled ? 'not-allowed' : 'grabbing',
-                },
-                '&:hover': {
-                  borderColor: config.color,
-                  backgroundColor: `${config.color}15`,
-                },
-              }}
-            >
-              {nodeType}
-            </Button>
-          </Tooltip>
-        ))}
+        <Tooltip title="Create a new node with any type" placement="right">
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddNodeIcon />}
+            onClick={onStartCreateNode}
+            disabled={disabled}
+            fullWidth
+            sx={{ justifyContent: 'flex-start' }}
+          >
+            Create Node
+          </Button>
+        </Tooltip>
       </Stack>
 
       <Divider sx={{ my: 2 }} />
@@ -140,7 +80,7 @@ const NodePalette: React.FC<NodePaletteProps> = ({
             <strong>Create Node:</strong>
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Drag a node type from above and drop it on the canvas
+            Click "Create Node" button above. You can enter any type you want.
           </Typography>
         </Box>
 
@@ -172,6 +112,15 @@ const NodePalette: React.FC<NodePaletteProps> = ({
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Select a node/edge and press Delete key
+          </Typography>
+        </Box>
+
+        <Box>
+          <Typography variant="caption" display="block" gutterBottom>
+            <strong>View Labels:</strong>
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Use the visibility toggles in the controls panel to show/hide node and edge labels
           </Typography>
         </Box>
       </Stack>
