@@ -119,7 +119,6 @@ try {
 const DATABRICKS_CONFIG = {
   host: process.env.DATABRICKS_HOST || 'e2-demo-west.cloud.databricks.com',
   path: process.env.DATABRICKS_HTTP_PATH || '/sql/1.0/warehouses/75fd8278393d07eb',
-  token: '', // Using service principal instead
   clientId: process.env.DATABRICKS_CLIENT_ID,
   clientSecret: process.env.DATABRICKS_CLIENT_SECRET,
 };
@@ -238,19 +237,20 @@ async function createDatabricksConnection(userAccessToken = null) {
 
     // Use user's access token if available (for user-level permissions)
     // Otherwise fall back to service principal (for app-level operations)
-    const connectionConfig = userAccessToken
-      ? {
-          host: DATABRICKS_CONFIG.host,
-          path: DATABRICKS_CONFIG.path,
-          token: userAccessToken, // User's token from X-Forwarded-Access-Token
-        }
-      : {
-          host: DATABRICKS_CONFIG.host,
-          path: DATABRICKS_CONFIG.path,
-          token: DATABRICKS_CONFIG.token,
-          clientId: DATABRICKS_CONFIG.clientId,
-          clientSecret: DATABRICKS_CONFIG.clientSecret,
-        };
+    const connectionConfig = {
+      host: DATABRICKS_CONFIG.host,
+      path: DATABRICKS_CONFIG.path,
+    };
+
+    if (userAccessToken) {
+      // OAuth2: User's access token (from X-Forwarded-Access-Token header)
+      connectionConfig.token = userAccessToken;
+    } else {
+      // OAuth2: Service Principal (M2M) - Client Credentials flow
+      // Don't pass token when using clientId/clientSecret
+      connectionConfig.clientId = DATABRICKS_CONFIG.clientId;
+      connectionConfig.clientSecret = DATABRICKS_CONFIG.clientSecret;
+    }
 
     const connection = await client.connect(connectionConfig);
 
