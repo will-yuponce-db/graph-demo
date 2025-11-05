@@ -73,14 +73,28 @@ const DATABRICKS_CONFIG = {
 
 const TABLE_NAME = process.env.DATABRICKS_TABLE || 'main.default.property_graph_entity_edges';
 
-console.log('🔧 Configuration:');
-console.log('  - Environment:', process.env.NODE_ENV || 'development');
-console.log('  - Port:', PORT);
-console.log('  - Databricks Host:', DATABRICKS_CONFIG.host);
-console.log('  - Databricks Client ID:', DATABRICKS_CONFIG.clientId ? '✓ Set' : '✗ Not set');
-
 // Check if Databricks is configured
 const DATABRICKS_ENABLED = !!DATABRICKS_CONFIG.clientId && !!DATABRICKS_CONFIG.clientSecret;
+
+console.log('\n═══════════════════════════════════════════════════════════');
+console.log('🔧 SERVER CONFIGURATION');
+console.log('═══════════════════════════════════════════════════════════');
+console.log('  Environment:', process.env.NODE_ENV || 'development');
+console.log('  Port:', PORT);
+console.log('  SQLite Database: ✓ Enabled (primary store)');
+console.log('\n📊 DATABRICKS CONFIGURATION:');
+if (DATABRICKS_ENABLED) {
+  console.log('  Status: ✅ ENABLED - Will sync to Databricks');
+  console.log('  Host:', DATABRICKS_CONFIG.host);
+  console.log('  Client ID:', DATABRICKS_CONFIG.clientId ? '✓ Configured' : '✗ Missing');
+  console.log('  Client Secret:', DATABRICKS_CONFIG.clientSecret ? '✓ Configured' : '✗ Missing');
+  console.log('  Table:', TABLE_NAME);
+  console.log('  Path:', DATABRICKS_CONFIG.path);
+} else {
+  console.log('  Status: ⚠️  DISABLED - SQLite only mode');
+  console.log('  Reason: Missing DATABRICKS_CLIENT_ID or DATABRICKS_CLIENT_SECRET');
+}
+console.log('═══════════════════════════════════════════════════════════\n');
 
 /**
  * Create a Databricks SQL connection
@@ -182,20 +196,25 @@ async function writeToDatabricks(nodes, edges) {
  * Fetch all graph data from SQLite database
  */
 app.get('/api/graph', async (req, res) => {
+  const startTime = Date.now();
   try {
-    console.log('Fetching graph data from SQLite...');
+    console.log('\n📥 [GET /api/graph] Fetching graph data from SQLite...');
 
     const nodes = getAllNodes(db);
     const edges = getAllEdges(db);
 
-    console.log(`✓ Fetched ${nodes.length} nodes and ${edges.length} edges from SQLite`);
+    const duration = Date.now() - startTime;
+    console.log(
+      `✅ [GET /api/graph] Success: ${nodes.length} nodes, ${edges.length} edges (${duration}ms)`
+    );
 
     res.json({
       nodes,
       edges,
     });
   } catch (error) {
-    console.error('Error fetching graph data:', error);
+    const duration = Date.now() - startTime;
+    console.error(`❌ [GET /api/graph] Error: ${error.message} (${duration}ms)`);
     res.status(500).json({
       error: 'Failed to fetch graph data',
       message: error.message,
@@ -227,33 +246,47 @@ app.post('/api/graph', async (req, res) => {
     });
   }
 
-  console.log(`Received request to write ${nodes.length} nodes and ${edges.length} edges`);
+  const startTime = Date.now();
+  console.log(`\n📤 [POST /api/graph] Write request: ${nodes.length} nodes, ${edges.length} edges`);
 
   let databricksSuccess = false;
   let databricksError = null;
 
   // Try writing to Databricks first if configured
   if (DATABRICKS_ENABLED) {
+    console.log('   🔄 Attempting write to Databricks...');
+    const dbStartTime = Date.now();
     try {
       await writeToDatabricks(nodes, edges);
       databricksSuccess = true;
+      const dbDuration = Date.now() - dbStartTime;
+      console.log(`   ✅ Databricks write SUCCESS (${dbDuration}ms)`);
     } catch (error) {
-      console.warn('Databricks write failed, will fall back to SQLite:', error.message);
+      const dbDuration = Date.now() - dbStartTime;
+      console.error(`   ❌ Databricks write FAILED (${dbDuration}ms): ${error.message}`);
+      console.warn('   ⚠️  Falling back to SQLite only...');
       databricksError = error.message;
     }
   } else {
-    console.log('Databricks not configured, writing to SQLite only');
+    console.log('   ⚠️  Databricks DISABLED - writing to SQLite only');
   }
 
   // Write to SQLite (primary store)
   try {
+    console.log('   💾 Writing to SQLite...');
+    const sqliteStartTime = Date.now();
     insertNodes(db, nodes);
     insertEdges(db, edges);
+    const sqliteDuration = Date.now() - sqliteStartTime;
+    console.log(`   ✅ SQLite write SUCCESS (${sqliteDuration}ms)`);
 
-    const target = databricksSuccess ? 'Databricks and SQLite' : 'SQLite only';
+    const totalDuration = Date.now() - startTime;
+    const target = databricksSuccess ? 'Databricks + SQLite' : 'SQLite only';
     const message = databricksSuccess
-      ? `Successfully wrote ${nodes.length} nodes and ${edges.length} edges to Databricks and SQLite`
-      : `Successfully wrote ${nodes.length} nodes and ${edges.length} edges to SQLite${databricksError ? ' (Databricks failed: ' + databricksError + ')' : ''}`;
+      ? `✅ Wrote ${nodes.length} nodes and ${edges.length} edges to BOTH Databricks and SQLite`
+      : `✅ Wrote ${nodes.length} nodes and ${edges.length} edges to SQLite${databricksError ? ' (Databricks unavailable)' : ''}`;
+
+    console.log(`✅ [POST /api/graph] Complete: ${target} (${totalDuration}ms total)\n`);
 
     res.json({
       success: true,
@@ -265,7 +298,10 @@ app.post('/api/graph', async (req, res) => {
       writtenEdges: edges.length,
     });
   } catch (error) {
-    console.error('Error writing to SQLite:', error);
+    const totalDuration = Date.now() - startTime;
+    console.error(
+      `❌ [POST /api/graph] SQLite write FAILED (${totalDuration}ms): ${error.message}\n`
+    );
     res.status(500).json({
       success: false,
       message: `Failed to write to database: ${error.message}`,
@@ -402,19 +438,23 @@ process.on('SIGINT', () => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`);
-  console.log(
-    `📊 Database: SQLite (${getAllNodes(db).length} nodes, ${getAllEdges(db).length} edges)`
-  );
+  const nodeCount = getAllNodes(db).length;
+  const edgeCount = getAllEdges(db).length;
+
+  console.log('\n═══════════════════════════════════════════════════════════');
+  console.log('🚀 SERVER STARTED');
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log(`  URL: http://localhost:${PORT}`);
+  console.log(`  SQLite: ${nodeCount} nodes, ${edgeCount} edges loaded`);
 
   if (DATABRICKS_ENABLED) {
-    console.log(`📊 Databricks Host: ${DATABRICKS_CONFIG.host}`);
-    console.log(`📋 Databricks Table: ${TABLE_NAME}`);
-    console.log('✓ Databricks credentials configured (will sync on write)');
+    console.log('\n  🎯 DATA DESTINATION: Databricks + SQLite (dual write)');
+    console.log(`     → Databricks will receive all new data`);
+    console.log(`     → SQLite maintains local copy`);
   } else {
-    console.warn('⚠️  Databricks not configured. Data will be stored in SQLite only.');
-    console.warn(
-      '   Set DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET in .env to enable Databricks sync'
-    );
+    console.log('\n  🎯 DATA DESTINATION: SQLite only (no Databricks sync)');
   }
+
+  console.log('═══════════════════════════════════════════════════════════');
+  console.log('Ready to accept requests...\n');
 });

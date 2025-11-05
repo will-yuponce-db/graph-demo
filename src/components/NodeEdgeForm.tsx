@@ -6,10 +6,7 @@ import {
   DialogActions,
   Button,
   TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
+  Autocomplete,
   Box,
   Typography,
   IconButton,
@@ -156,16 +153,26 @@ export const NodeForm: React.FC<NodeFormProps> = ({
             autoFocus
           />
 
-          <FormControl fullWidth size="small">
-            <InputLabel>Type</InputLabel>
-            <Select value={type} onChange={(e) => setType(e.target.value)} label="Type">
-              {Object.values(NodeType).map((nodeType) => (
-                <MenuItem key={nodeType} value={nodeType}>
-                  {nodeType}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Autocomplete
+            freeSolo
+            options={Object.values(NodeType)}
+            value={type}
+            onChange={(_event, newValue) => {
+              setType(newValue || '');
+            }}
+            onInputChange={(_event, newInputValue) => {
+              setType(newInputValue);
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Type"
+                placeholder="Enter or select a type"
+                size="small"
+                required
+              />
+            )}
+          />
 
           <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
@@ -358,20 +365,26 @@ export const EdgeForm: React.FC<EdgeFormProps> = ({
             size="small"
           />
 
-          <FormControl fullWidth size="small">
-            <InputLabel>Relationship Type</InputLabel>
-            <Select
-              value={relationshipType}
-              onChange={(e) => setRelationshipType(e.target.value)}
-              label="Relationship Type"
-            >
-              {Object.values(RelationshipType).map((relType) => (
-                <MenuItem key={relType} value={relType}>
-                  {relType}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Autocomplete
+            freeSolo
+            options={Object.values(RelationshipType)}
+            value={relationshipType}
+            onChange={(_event, newValue) => {
+              setRelationshipType(newValue || '');
+            }}
+            onInputChange={(_event, newInputValue) => {
+              setRelationshipType(newInputValue);
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Relationship Type"
+                placeholder="Enter or select a relationship type"
+                size="small"
+                required
+              />
+            )}
+          />
 
           <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
