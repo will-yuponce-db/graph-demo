@@ -38,6 +38,56 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substring(7);
+
+  // Log incoming request
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log(`📨 INCOMING REQUEST [${requestId}]`);
+  console.log(`   ${req.method} ${req.path}`);
+  console.log(`   Time: ${new Date().toISOString()}`);
+  if (Object.keys(req.query).length > 0) {
+    console.log(`   Query:`, req.query);
+  }
+  if (req.body && Object.keys(req.body).length > 0) {
+    if (req.body.nodes || req.body.edges) {
+      console.log(
+        `   Body: ${req.body.nodes?.length || 0} nodes, ${req.body.edges?.length || 0} edges`
+      );
+    } else {
+      console.log(`   Body:`, JSON.stringify(req.body).substring(0, 200));
+    }
+  }
+
+  // Capture response
+  const originalJson = res.json.bind(res);
+  res.json = function (body) {
+    const duration = Date.now() - startTime;
+
+    console.log(`\n📤 RESPONSE [${requestId}]`);
+    console.log(`   Status: ${res.statusCode}`);
+    console.log(`   Duration: ${duration}ms`);
+
+    // Log key response fields
+    if (body.success !== undefined) console.log(`   Success: ${body.success}`);
+    if (body.source) console.log(`   Source: ${body.source}`);
+    if (body.databricksEnabled !== undefined)
+      console.log(`   Databricks: ${body.databricksEnabled ? 'Enabled' : 'Disabled'}`);
+    if (body.databricksError) console.log(`   ⚠️  Databricks Error: ${body.databricksError}`);
+    if (body.nodes) console.log(`   Nodes: ${body.nodes.length}`);
+    if (body.edges) console.log(`   Edges: ${body.edges.length}`);
+    if (body.message) console.log(`   Message: ${body.message}`);
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+    return originalJson(body);
+  };
+
+  next();
+});
+
 // Serve static files from React app in production
 const path = require('path');
 if (process.env.NODE_ENV === 'production') {
