@@ -1,27 +1,19 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeContextProvider } from './contexts/ThemeContext';
-import Layout from './components/Layout';
-import Home from './pages/Home';
-import Dashboard from './pages/Dashboard';
-import Forms from './pages/Forms';
-import About from './pages/About';
+import { Box } from '@mui/material';
 import GraphVisualization from './pages/GraphVisualization';
+import ThemeToggle from './components/ThemeToggle';
 
 const App: React.FC = () => {
   return (
     <ThemeContextProvider>
-      <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/graph" element={<GraphVisualization />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/forms" element={<Forms />} />
-            <Route path="/about" element={<About />} />
-          </Routes>
-        </Layout>
-      </Router>
+      <Box sx={{ position: 'relative', minHeight: '100vh' }}>
+        {/* Theme toggle in top right corner */}
+        <Box sx={{ position: 'fixed', top: 16, right: 16, zIndex: 1300 }}>
+          <ThemeToggle />
+        </Box>
+        <GraphVisualization />
+      </Box>
     </ThemeContextProvider>
   );
 };

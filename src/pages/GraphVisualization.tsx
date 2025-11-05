@@ -48,6 +48,10 @@ const getGraphStats = (data: GraphData): GraphStats => {
 };
 
 const GraphVisualizationPage: React.FC = () => {
+  // Set page title
+  React.useEffect(() => {
+    document.title = 'Interactive Graph Editor | Databricks';
+  }, []);
   const [showProposed, setShowProposed] = useState(true);
   const [selectedNodeTypes, setSelectedNodeTypes] = useState<string[]>([]);
   const [selectedRelationshipTypes, setSelectedRelationshipTypes] = useState<string[]>([]);
@@ -307,7 +311,7 @@ const GraphVisualizationPage: React.FC = () => {
   const hasProposedChanges = newNodesCount > 0 || newEdgesCount > 0;
 
   return (
-    <Container maxWidth={false} sx={{ height: '100vh', py: 3 }}>
+    <Container maxWidth={false} sx={{ minHeight: '100vh', py: 3 }}>
       <Box sx={{ mb: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
