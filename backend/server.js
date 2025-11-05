@@ -151,8 +151,41 @@ function sanitizeErrorForClient(error) {
   if (!error) return null;
 
   const errorMessage = typeof error === 'string' ? error : error.message || 'Unknown error';
+  const errorObj = typeof error === 'object' ? error : {};
 
-  // Detect common error types and return user-friendly messages
+  // Check for Databricks-specific error properties first
+  if (errorObj.errorClass) {
+    switch (errorObj.errorClass) {
+      case 'TABLE_OR_VIEW_NOT_FOUND':
+        return 'Database table not found';
+      case 'SCHEMA_NOT_FOUND':
+        return 'Database schema not found';
+      case 'PARSE_SYNTAX_ERROR':
+        return 'Invalid query syntax';
+      default:
+        return `Database error: ${errorObj.errorClass}`;
+    }
+  }
+
+  // Check HTTP status codes
+  if (errorObj.statusCode || errorObj.status) {
+    const status = errorObj.statusCode || errorObj.status;
+    switch (status) {
+      case 401:
+      case 403:
+        return 'Databricks authentication failed';
+      case 404:
+        return 'Databricks resource not found';
+      case 500:
+        return 'Databricks server error';
+      case 503:
+        return 'Databricks service unavailable';
+      default:
+        return `Databricks error (HTTP ${status})`;
+    }
+  }
+
+  // Detect common error types from message
   if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('connect')) {
     return 'Unable to connect to Databricks';
   }
@@ -171,6 +204,9 @@ function sanitizeErrorForClient(error) {
   }
   if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('DNS')) {
     return 'Databricks host not found';
+  }
+  if (errorMessage.includes('table') && errorMessage.includes('not found')) {
+    return 'Database table not found';
   }
 
   // Return a generic version of the message without internal details
@@ -230,6 +266,21 @@ async function createDatabricksConnection() {
     console.error('   ═════════════════════════════════════════════════');
     console.error('   Error Type:', error.constructor.name);
     console.error('   Error Message:', error.message);
+
+    // Log all error properties for Databricks-specific details
+    if (error.statusCode) console.error('   HTTP Status Code:', error.statusCode);
+    if (error.status) console.error('   Status:', error.status);
+    if (error.code) console.error('   Error Code:', error.code);
+    if (error.sqlState) console.error('   SQL State:', error.sqlState);
+    if (error.errorClass) console.error('   Error Class:', error.errorClass);
+    if (error.messageParameters) {
+      console.error('   Message Parameters:', JSON.stringify(error.messageParameters, null, 2));
+    }
+
+    // Log ALL error properties
+    console.error('\n   All Error Properties:');
+    console.error('   ', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+
     console.error('\n   Full Stack Trace:');
     console.error(error.stack);
     console.error('   ═════════════════════════════════════════════════\n');
@@ -323,6 +374,22 @@ async function readFromDatabricks() {
     console.error('═════════════════════════════════════════════════');
     console.error('Error Type:', error.constructor.name);
     console.error('Error Message:', error.message);
+    console.error('Query:', `SELECT * FROM ${TABLE_NAME}`);
+
+    // Log all error properties for Databricks-specific details
+    if (error.statusCode) console.error('HTTP Status Code:', error.statusCode);
+    if (error.status) console.error('Status:', error.status);
+    if (error.code) console.error('Error Code:', error.code);
+    if (error.sqlState) console.error('SQL State:', error.sqlState);
+    if (error.errorClass) console.error('Error Class:', error.errorClass);
+    if (error.messageParameters) {
+      console.error('Message Parameters:', JSON.stringify(error.messageParameters, null, 2));
+    }
+
+    // Log ALL error properties
+    console.error('\nAll Error Properties:');
+    console.error(JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+
     console.error('\nFull Stack Trace:');
     console.error(error.stack);
     console.error('═════════════════════════════════════════════════\n');
@@ -404,6 +471,24 @@ async function writeToDatabricks(nodes, edges) {
     console.error('═════════════════════════════════════════════════');
     console.error('Error Type:', error.constructor.name);
     console.error('Error Message:', error.message);
+    console.error('Target Table:', TABLE_NAME);
+    console.error('Nodes to write:', nodes.length);
+    console.error('Edges to write:', edges.length);
+
+    // Log all error properties for Databricks-specific details
+    if (error.statusCode) console.error('HTTP Status Code:', error.statusCode);
+    if (error.status) console.error('Status:', error.status);
+    if (error.code) console.error('Error Code:', error.code);
+    if (error.sqlState) console.error('SQL State:', error.sqlState);
+    if (error.errorClass) console.error('Error Class:', error.errorClass);
+    if (error.messageParameters) {
+      console.error('Message Parameters:', JSON.stringify(error.messageParameters, null, 2));
+    }
+
+    // Log ALL error properties
+    console.error('\nAll Error Properties:');
+    console.error(JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+
     console.error('\nFull Stack Trace:');
     console.error(error.stack);
     console.error('═════════════════════════════════════════════════\n');
