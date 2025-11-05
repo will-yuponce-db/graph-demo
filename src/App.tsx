@@ -12,8 +12,8 @@ const App: React.FC = () => {
         <Box
           sx={{
             position: 'fixed',
-            bottom: 24,
-            right: 24,
+            top: 16,
+            left: 16,
             zIndex: 9999,
             backgroundColor: 'background.paper',
             borderRadius: 1,
