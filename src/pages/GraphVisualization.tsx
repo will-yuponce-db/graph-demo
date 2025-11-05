@@ -311,9 +311,9 @@ const GraphVisualizationPage: React.FC = () => {
   const hasProposedChanges = newNodesCount > 0 || newEdgesCount > 0;
 
   return (
-    <Container maxWidth={false} sx={{ minHeight: '100vh', py: 3 }}>
+    <Container maxWidth={false} sx={{ minHeight: '100vh', py: 3, pr: 10 }}>
       <Box sx={{ mb: 3 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
           <Box>
             <Typography variant="h4" gutterBottom>
               Graph Editor
@@ -322,7 +322,7 @@ const GraphVisualizationPage: React.FC = () => {
               Create and edit graph nodes and relationships, then save to database
             </Typography>
           </Box>
-          <Box display="flex" gap={2}>
+          <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
             <Button
               variant="outlined"
               color="primary"
