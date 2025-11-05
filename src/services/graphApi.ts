@@ -20,8 +20,11 @@ import { mockGraphData } from '../data/mockGraphData';
 
 /**
  * Backend API URL
+ * In production (monolith): use relative /api path (same server)
+ * In development: use http://localhost:3000/api (separate backend server)
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000/api');
 
 /**
  * Whether to use backend API or mock data
