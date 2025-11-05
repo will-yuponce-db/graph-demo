@@ -9,7 +9,17 @@ const App: React.FC = () => {
     <ThemeContextProvider>
       <Box sx={{ position: 'relative', minHeight: '100vh' }}>
         {/* Theme toggle in top right corner */}
-        <Box sx={{ position: 'fixed', top: 16, right: 16, zIndex: 1300 }}>
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 24,
+            right: 24,
+            zIndex: 1400,
+            backgroundColor: 'background.paper',
+            borderRadius: 1,
+            boxShadow: 2,
+          }}
+        >
           <ThemeToggle />
         </Box>
         <GraphVisualization />
