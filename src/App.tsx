@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Forms from './pages/Forms';
 import About from './pages/About';
+import GraphVisualization from './pages/GraphVisualization';
 
 const App: React.FC = () => {
   return (
@@ -14,6 +15,7 @@ const App: React.FC = () => {
         <Layout>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/graph" element={<GraphVisualization />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/forms" element={<Forms />} />
             <Route path="/about" element={<About />} />

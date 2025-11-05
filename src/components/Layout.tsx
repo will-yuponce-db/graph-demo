@@ -20,6 +20,7 @@ import {
   Dashboard as DashboardIcon,
   Description as FormIcon,
   Info as InfoIcon,
+  AccountTree as GraphIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
@@ -32,6 +33,7 @@ interface LayoutProps {
 
 const menuItems = [
   { text: 'Home', icon: <HomeIcon />, path: '/' },
+  { text: 'Graph Visualization', icon: <GraphIcon />, path: '/graph' },
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Forms', icon: <FormIcon />, path: '/forms' },
   { text: 'About', icon: <InfoIcon />, path: '/about' },
@@ -98,7 +100,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            React + MUI Boilerplate
+            Databricks Graph Visualization
           </Typography>
           <ThemeToggle />
         </Toolbar>
