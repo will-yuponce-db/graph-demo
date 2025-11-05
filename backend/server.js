@@ -504,8 +504,19 @@ app.get('/api/graph', async (req, res) => {
   if (userAccessToken) {
     logger.info({
       type: 'user_auth',
+      endpoint: 'GET /api/graph',
       email: userEmail,
       hasToken: true,
+      tokenLength: userAccessToken.length,
+      tokenPrefix: userAccessToken.substring(0, 10) + '...',
+    });
+  } else {
+    logger.info({
+      type: 'user_auth',
+      endpoint: 'GET /api/graph',
+      email: userEmail,
+      hasToken: false,
+      availableHeaders: Object.keys(req.headers).filter((h) => h.startsWith('x-forwarded')),
     });
   }
 
@@ -630,8 +641,19 @@ app.post('/api/graph', async (req, res) => {
   if (userAccessToken) {
     logger.info({
       type: 'user_auth',
+      endpoint: 'POST /api/graph',
       email: userEmail,
       hasToken: true,
+      tokenLength: userAccessToken.length,
+      tokenPrefix: userAccessToken.substring(0, 10) + '...',
+    });
+  } else {
+    logger.info({
+      type: 'user_auth',
+      endpoint: 'POST /api/graph',
+      email: userEmail,
+      hasToken: false,
+      availableHeaders: Object.keys(req.headers).filter((h) => h.startsWith('x-forwarded')),
     });
   }
 
