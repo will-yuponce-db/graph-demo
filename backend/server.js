@@ -128,6 +128,40 @@ const TABLE_NAME = process.env.DATABRICKS_TABLE || 'main.default.property_graph_
 // Check if Databricks is configured
 const DATABRICKS_ENABLED = !!DATABRICKS_CONFIG.clientId && !!DATABRICKS_CONFIG.clientSecret;
 
+/**
+ * Sanitize error messages for client responses
+ * Keeps full details in server logs but sends clean messages to frontend
+ */
+function sanitizeErrorForClient(error) {
+  if (!error) return null;
+
+  const errorMessage = typeof error === 'string' ? error : error.message || 'Unknown error';
+
+  // Detect common error types and return user-friendly messages
+  if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('connect')) {
+    return 'Unable to connect to Databricks';
+  }
+  if (
+    errorMessage.includes('authentication') ||
+    errorMessage.includes('401') ||
+    errorMessage.includes('403')
+  ) {
+    return 'Databricks authentication failed';
+  }
+  if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+    return 'Databricks connection timed out';
+  }
+  if (errorMessage.includes('not configured')) {
+    return 'Databricks not configured';
+  }
+  if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('DNS')) {
+    return 'Databricks host not found';
+  }
+
+  // Return a generic version of the message without internal details
+  return errorMessage.split('\n')[0].substring(0, 150);
+}
+
 console.log('\n═══════════════════════════════════════════════════════════');
 console.log('🔧 SERVER CONFIGURATION');
 console.log('═══════════════════════════════════════════════════════════');
@@ -156,18 +190,32 @@ async function createDatabricksConnection() {
     throw new Error('Databricks not configured');
   }
 
-  const client = new DBSQLClient();
+  console.log('   🔌 Attempting Databricks connection...');
+  console.log(`      Host: ${DATABRICKS_CONFIG.host}`);
+  console.log(`      Path: ${DATABRICKS_CONFIG.path}`);
+  console.log(`      Client ID: ${DATABRICKS_CONFIG.clientId ? '✓' : '✗'}`);
 
-  const connection = await client.connect({
-    host: DATABRICKS_CONFIG.host,
-    path: DATABRICKS_CONFIG.path,
-    token: DATABRICKS_CONFIG.token,
-    clientId: DATABRICKS_CONFIG.clientId,
-    clientSecret: DATABRICKS_CONFIG.clientSecret,
-  });
+  try {
+    const client = new DBSQLClient();
 
-  console.log('✓ Connected to Databricks SQL Warehouse');
-  return connection;
+    const connection = await client.connect({
+      host: DATABRICKS_CONFIG.host,
+      path: DATABRICKS_CONFIG.path,
+      token: DATABRICKS_CONFIG.token,
+      clientId: DATABRICKS_CONFIG.clientId,
+      clientSecret: DATABRICKS_CONFIG.clientSecret,
+    });
+
+    console.log('   ✅ Connected to Databricks SQL Warehouse');
+    return connection;
+  } catch (error) {
+    console.error('   ❌ Databricks connection failed:');
+    console.error('      Error Type:', error.constructor.name);
+    console.error('      Error Message:', error.message);
+    console.error('      Full Stack Trace:');
+    console.error(error.stack);
+    throw error;
+  }
 }
 
 /**
@@ -250,7 +298,11 @@ async function readFromDatabricks() {
 
     return { nodes, edges };
   } catch (error) {
-    console.error('Error reading from Databricks:', error);
+    console.error('❌ Error reading from Databricks:');
+    console.error('   Error Type:', error.constructor.name);
+    console.error('   Error Message:', error.message);
+    console.error('   Full Stack Trace:');
+    console.error(error.stack);
     throw error;
   } finally {
     if (connection) {
@@ -323,7 +375,11 @@ async function writeToDatabricks(nodes, edges) {
       target: 'databricks',
     };
   } catch (error) {
-    console.error('Error writing to Databricks:', error);
+    console.error('❌ Error writing to Databricks:');
+    console.error('   Error Type:', error.constructor.name);
+    console.error('   Error Message:', error.message);
+    console.error('   Full Stack Trace:');
+    console.error(error.stack);
     throw error;
   } finally {
     if (connection) {
@@ -360,9 +416,13 @@ app.get('/api/graph', async (req, res) => {
         console.log(`   ✅ Databricks read SUCCESS (${dbDuration}ms)`);
       } catch (dbError) {
         const dbDuration = Date.now() - dbStartTime;
-        console.error(`   ❌ Databricks read FAILED (${dbDuration}ms): ${dbError.message}`);
+        console.error(`   ❌ Databricks read FAILED (${dbDuration}ms)`);
+        console.error('   Error Type:', dbError.constructor.name);
+        console.error('   Error Message:', dbError.message);
+        console.error('   Full Stack Trace:');
+        console.error(dbError.stack);
         console.warn('   ⚠️  Falling back to SQLite...');
-        databricksError = dbError.message;
+        databricksError = dbError.message; // Keep raw error for logging
 
         // Fall back to SQLite
         console.log('   💾 Reading from SQLite...');
@@ -385,7 +445,7 @@ app.get('/api/graph', async (req, res) => {
       success: true,
       source,
       databricksEnabled: DATABRICKS_ENABLED,
-      databricksError,
+      databricksError: sanitizeErrorForClient(databricksError),
       timestamp: new Date().toISOString(),
       duration: `${duration}ms`,
       nodes,
@@ -393,27 +453,31 @@ app.get('/api/graph', async (req, res) => {
       metadata: {
         source,
         databricksEnabled: DATABRICKS_ENABLED,
-        databricksError,
+        databricksError: sanitizeErrorForClient(databricksError),
         timestamp: new Date().toISOString(),
         duration: `${duration}ms`,
       },
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`❌ [GET /api/graph] Error: ${error.message} (${duration}ms)\n`);
+    console.error(`❌ [GET /api/graph] Critical Error (${duration}ms):`);
+    console.error('   Error Type:', error.constructor.name);
+    console.error('   Error Message:', error.message);
+    console.error('   Full Stack Trace:');
+    console.error(error.stack);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch graph data',
-      message: error.message,
+      message: sanitizeErrorForClient(error),
       source: 'error',
       databricksEnabled: DATABRICKS_ENABLED,
-      databricksError: databricksError || error.message,
+      databricksError: sanitizeErrorForClient(databricksError || error),
       timestamp: new Date().toISOString(),
       duration: `${duration}ms`,
       metadata: {
         source: 'error',
         databricksEnabled: DATABRICKS_ENABLED,
-        databricksError: databricksError || error.message,
+        databricksError: sanitizeErrorForClient(databricksError || error),
         timestamp: new Date().toISOString(),
         duration: `${duration}ms`,
       },
@@ -463,9 +527,13 @@ app.post('/api/graph', async (req, res) => {
         target = 'Databricks';
       } catch (error) {
         const dbDuration = Date.now() - dbStartTime;
-        console.error(`   ❌ Databricks write FAILED (${dbDuration}ms): ${error.message}`);
+        console.error(`   ❌ Databricks write FAILED (${dbDuration}ms)`);
+        console.error('   Error Type:', error.constructor.name);
+        console.error('   Error Message:', error.message);
+        console.error('   Full Stack Trace:');
+        console.error(error.stack);
         console.warn('   ⚠️  Falling back to SQLite...');
-        writeError = error.message;
+        writeError = error.message; // Keep raw error for logging
 
         // Fall back to SQLite
         console.log('   💾 Writing to SQLite as fallback...');
@@ -486,8 +554,9 @@ app.post('/api/graph', async (req, res) => {
     }
 
     const totalDuration = Date.now() - startTime;
+    const sanitizedError = sanitizeErrorForClient(writeError);
     const message = writeError
-      ? `✅ Wrote ${nodes.length} nodes and ${edges.length} edges to ${target} (Databricks unavailable: ${writeError})`
+      ? `✅ Wrote ${nodes.length} nodes and ${edges.length} edges to ${target} (Databricks unavailable: ${sanitizedError})`
       : `✅ Wrote ${nodes.length} nodes and ${edges.length} edges to ${target}`;
 
     console.log(`✅ [POST /api/graph] Complete: ${target} (${totalDuration}ms total)\n`);
@@ -497,7 +566,7 @@ app.post('/api/graph', async (req, res) => {
       message,
       source: target,
       databricksEnabled: DATABRICKS_ENABLED,
-      databricksError: writeError,
+      databricksError: sanitizedError,
       timestamp: new Date().toISOString(),
       duration: `${totalDuration}ms`,
       target,
@@ -507,26 +576,30 @@ app.post('/api/graph', async (req, res) => {
       metadata: {
         source: target,
         databricksEnabled: DATABRICKS_ENABLED,
-        databricksError: writeError,
+        databricksError: sanitizedError,
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
       },
     });
   } catch (error) {
     const totalDuration = Date.now() - startTime;
-    console.error(`❌ [POST /api/graph] Write FAILED (${totalDuration}ms): ${error.message}\n`);
+    console.error(`❌ [POST /api/graph] Critical Error (${totalDuration}ms):`);
+    console.error('   Error Type:', error.constructor.name);
+    console.error('   Error Message:', error.message);
+    console.error('   Full Stack Trace:');
+    console.error(error.stack);
     res.status(500).json({
       success: false,
-      message: `Failed to write to database: ${error.message}`,
+      message: `Failed to write to database: ${sanitizeErrorForClient(error)}`,
       source: 'error',
       databricksEnabled: DATABRICKS_ENABLED,
-      databricksError: writeError || error.message,
+      databricksError: sanitizeErrorForClient(writeError || error),
       timestamp: new Date().toISOString(),
       duration: `${totalDuration}ms`,
       metadata: {
         source: 'error',
         databricksEnabled: DATABRICKS_ENABLED,
-        databricksError: writeError || error.message,
+        databricksError: sanitizeErrorForClient(writeError || error),
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
       },
@@ -537,18 +610,30 @@ app.post('/api/graph', async (req, res) => {
 /**
  * PATCH /api/graph/status
  * Update status of nodes and edges (e.g., from 'new' to 'existing')
+ * Note: Status updates are currently SQLite-only as Databricks table doesn't have status field
  */
 app.patch('/api/graph/status', async (req, res) => {
   const { nodeIds, edgeIds, status } = req.body;
+  const startTime = Date.now();
 
   if (!status) {
     return res.status(400).json({
       success: false,
       message: 'Missing status in request body',
+      source: 'error',
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: null,
+      timestamp: new Date().toISOString(),
+      duration: '0ms',
     });
   }
 
+  console.log(`\n🔄 [PATCH /api/graph/status] Updating status to: ${status}`);
+  console.log(`   Nodes: ${nodeIds?.length || 0}, Edges: ${edgeIds?.length || 0}`);
+
   try {
+    // Note: Status updates are SQLite-only
+    // Databricks table structure doesn't include status field
     if (nodeIds && nodeIds.length > 0) {
       updateNodesStatus(db, nodeIds, status);
     }
@@ -557,17 +642,49 @@ app.patch('/api/graph/status', async (req, res) => {
       updateEdgesStatus(db, edgeIds, status);
     }
 
+    const totalDuration = Date.now() - startTime;
+    console.log(`✅ [PATCH /api/graph/status] Complete (${totalDuration}ms)\n`);
+
     res.json({
       success: true,
       message: `Updated ${(nodeIds?.length || 0) + (edgeIds?.length || 0)} items to status: ${status}`,
+      source: 'SQLite',
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: null,
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
       updatedNodes: nodeIds?.length || 0,
       updatedEdges: edgeIds?.length || 0,
+      metadata: {
+        source: 'SQLite',
+        databricksEnabled: DATABRICKS_ENABLED,
+        databricksError: null,
+        timestamp: new Date().toISOString(),
+        duration: `${totalDuration}ms`,
+      },
     });
   } catch (error) {
-    console.error('Error updating status:', error);
+    const totalDuration = Date.now() - startTime;
+    console.error(`❌ [PATCH /api/graph/status] Error (${totalDuration}ms):`);
+    console.error('   Error Type:', error.constructor.name);
+    console.error('   Error Message:', error.message);
+    console.error('   Full Stack Trace:');
+    console.error(error.stack);
     res.status(500).json({
       success: false,
-      message: `Failed to update status: ${error.message}`,
+      message: `Failed to update status: ${sanitizeErrorForClient(error)}`,
+      source: 'error',
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: null,
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
+      metadata: {
+        source: 'error',
+        databricksEnabled: DATABRICKS_ENABLED,
+        databricksError: null,
+        timestamp: new Date().toISOString(),
+        duration: `${totalDuration}ms`,
+      },
     });
   }
 });
@@ -577,8 +694,10 @@ app.patch('/api/graph/status', async (req, res) => {
  * Reseed the database with mock data
  */
 app.post('/api/graph/seed', async (req, res) => {
+  const startTime = Date.now();
+
   try {
-    console.log('Reseeding database...');
+    console.log('\n🌱 [POST /api/graph/seed] Reseeding database...');
 
     // Close current connection
     db.close();
@@ -592,17 +711,49 @@ app.post('/api/graph/seed', async (req, res) => {
     const nodes = getAllNodes(db);
     const edges = getAllEdges(db);
 
+    const totalDuration = Date.now() - startTime;
+    console.log(`✅ [POST /api/graph/seed] Complete (${totalDuration}ms)\n`);
+
     res.json({
       success: true,
       message: 'Database reseeded successfully',
+      source: 'SQLite',
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: null,
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
       nodeCount: nodes.length,
       edgeCount: edges.length,
+      metadata: {
+        source: 'SQLite',
+        databricksEnabled: DATABRICKS_ENABLED,
+        databricksError: null,
+        timestamp: new Date().toISOString(),
+        duration: `${totalDuration}ms`,
+      },
     });
   } catch (error) {
-    console.error('Error reseeding database:', error);
+    const totalDuration = Date.now() - startTime;
+    console.error(`❌ [POST /api/graph/seed] Error (${totalDuration}ms):`);
+    console.error('   Error Type:', error.constructor.name);
+    console.error('   Error Message:', error.message);
+    console.error('   Full Stack Trace:');
+    console.error(error.stack);
     res.status(500).json({
       success: false,
-      message: `Failed to reseed database: ${error.message}`,
+      message: `Failed to reseed database: ${sanitizeErrorForClient(error)}`,
+      source: 'error',
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: null,
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
+      metadata: {
+        source: 'error',
+        databricksEnabled: DATABRICKS_ENABLED,
+        databricksError: null,
+        timestamp: new Date().toISOString(),
+        duration: `${totalDuration}ms`,
+      },
     });
   }
 });
@@ -631,6 +782,10 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     environment: process.env.NODE_ENV || 'development',
+    source: DATABRICKS_ENABLED ? 'Databricks + SQLite (fallback)' : 'SQLite',
+    databricksEnabled: DATABRICKS_ENABLED,
+    databricksError: null,
+    timestamp: new Date().toISOString(),
     database: {
       type: 'SQLite',
       nodeCount: nodes.length,
@@ -640,6 +795,12 @@ app.get('/health', (req, res) => {
       configured: DATABRICKS_ENABLED,
       host: DATABRICKS_CONFIG.host,
       table: TABLE_NAME,
+    },
+    metadata: {
+      source: DATABRICKS_ENABLED ? 'Databricks + SQLite (fallback)' : 'SQLite',
+      databricksEnabled: DATABRICKS_ENABLED,
+      databricksError: null,
+      timestamp: new Date().toISOString(),
     },
   });
 });
