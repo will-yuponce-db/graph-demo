@@ -21,14 +21,15 @@ import {
   Error as ErrorIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import GraphVisualization from '../components/GraphVisualization';
+import GraphVisualization, { type GraphVisualizationRef } from '../components/GraphVisualization';
 import GraphControls from '../components/GraphControls';
 import NodePalette from '../components/NodePalette';
+import NodeSearch from '../components/NodeSearch';
 import { NodeForm, EdgeForm } from '../components/NodeEdgeForm';
 import { useGraphEditor } from '../hooks/useGraphEditor';
 import type { GraphData, GraphStats, GraphNode, GraphEdge } from '../types/graph';
 import { writeToTable, fetchGraphData, updateItemsStatus } from '../services/graphApi';
-import { ChangeStatus } from '../types/graph';
+import { ChangeStatus, getUniqueNodeTypes, getUniqueRelationshipTypes } from '../types/graph';
 
 // Helper function to calculate graph stats
 const getGraphStats = (data: GraphData): GraphStats => {
@@ -52,6 +53,10 @@ const GraphVisualizationPage: React.FC = () => {
   React.useEffect(() => {
     document.title = 'Interactive Graph Editor | Databricks';
   }, []);
+
+  // Ref for graph visualization component
+  const graphVisualizationRef = useRef<GraphVisualizationRef>(null);
+
   const [showProposed, setShowProposed] = useState(true);
   const [selectedNodeTypes, setSelectedNodeTypes] = useState<string[]>([]);
   const [selectedRelationshipTypes, setSelectedRelationshipTypes] = useState<string[]>([]);
@@ -172,6 +177,15 @@ const GraphVisualizationPage: React.FC = () => {
     setShowProposed(true);
     setSelectedNodeTypes([]);
     setSelectedRelationshipTypes([]);
+    // Reset the graph zoom and pan
+    graphVisualizationRef.current?.resetView();
+  };
+
+  const handleNodeSearchSelect = (nodeId: string) => {
+    // Center on the selected node
+    graphVisualizationRef.current?.centerOnNode(nodeId);
+    // Select the node
+    editor.selectNode(nodeId);
   };
 
   // Node creation from palette
@@ -439,6 +453,15 @@ const GraphVisualizationPage: React.FC = () => {
                 )}
               </Box>
             </Box>
+
+            {/* Node Search */}
+            <Box sx={{ mb: 2 }}>
+              <NodeSearch
+                graphData={editor.graphData}
+                onNodeSelect={handleNodeSearchSelect}
+                disabled={isLoadingData}
+              />
+            </Box>
             <Box sx={{ flexGrow: 1, position: 'relative' }}>
               {isLoadingData ? (
                 <Box display="flex" justifyContent="center" alignItems="center" height="100%">
@@ -471,6 +494,7 @@ const GraphVisualizationPage: React.FC = () => {
                 </Box>
               ) : (
                 <GraphVisualization
+                  ref={graphVisualizationRef}
                   data={editor.graphData}
                   showProposed={showProposed}
                   selectedNodeTypes={selectedNodeTypes}
@@ -520,6 +544,7 @@ const GraphVisualizationPage: React.FC = () => {
             nodeSize={nodeSize}
             onNodeSizeChange={setNodeSize}
             onResetView={handleResetView}
+            graphData={editor.graphData}
             stats={stats}
           />
         </Grid>
@@ -536,6 +561,7 @@ const GraphVisualizationPage: React.FC = () => {
         onDelete={handleNodeDelete}
         initialData={nodeFormInitialData}
         mode={nodeFormMode}
+        availableNodeTypes={getUniqueNodeTypes(editor.graphData)}
       />
 
       {/* Edge Form Dialog */}
@@ -553,6 +579,7 @@ const GraphVisualizationPage: React.FC = () => {
         sourceNodeId={edgeFormSourceId}
         targetNodeId={edgeFormTargetId}
         mode={edgeFormMode}
+        availableRelationshipTypes={getUniqueRelationshipTypes(editor.graphData)}
       />
 
       {/* Confirmation Dialog */}

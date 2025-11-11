@@ -1,8 +1,27 @@
 import type { GraphNode, GraphEdge, GraphData } from '../types/graph';
-import { ChangeStatus, NodeType, RelationshipType } from '../types/graph';
+import { ChangeStatus } from '../types/graph';
 
 // Mock data representing denormalized graph data from Databricks SQL
 // Simulates an existing knowledge graph with proposed additions
+
+// Node type constants (these can be any strings)
+const NodeType = {
+  PERSON: 'Person',
+  COMPANY: 'Company',
+  PRODUCT: 'Product',
+  LOCATION: 'Location',
+} as const;
+
+// Relationship type constants (these can be any strings)
+const RelationshipType = {
+  WORKS_AT: 'WORKS_AT',
+  OWNS: 'OWNS',
+  LOCATED_IN: 'LOCATED_IN',
+  PRODUCES: 'PRODUCES',
+  PARTNERS_WITH: 'PARTNERS_WITH',
+  MANAGES: 'MANAGES',
+  REPORTS_TO: 'REPORTS_TO',
+} as const;
 
 const mockNodes: GraphNode[] = [
   // Existing nodes - Companies

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -9,9 +9,8 @@ import {
   Divider,
   Chip,
   Stack,
-  FormGroup,
-  Checkbox,
   Slider,
+  useTheme,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -19,7 +18,12 @@ import {
   VisibilityOff as VisibilityOffIcon,
   Label as LabelIcon,
 } from '@mui/icons-material';
-import { NodeType, RelationshipType } from '../types/graph';
+import {
+  getUniqueNodeTypes,
+  getUniqueRelationshipTypes,
+  getColorForType,
+  type GraphData,
+} from '../types/graph';
 
 interface GraphControlsProps {
   showProposed: boolean;
@@ -37,6 +41,7 @@ interface GraphControlsProps {
   nodeSize: number;
   onNodeSizeChange: (size: number) => void;
   onResetView: () => void;
+  graphData: GraphData; // Add graphData to extract types dynamically
   stats: {
     totalNodes: number;
     totalEdges: number;
@@ -61,10 +66,24 @@ const GraphControls: React.FC<GraphControlsProps> = ({
   nodeSize,
   onNodeSizeChange,
   onResetView,
+  graphData,
   stats,
 }) => {
-  const nodeTypes = Object.values(NodeType);
-  const relationshipTypes = Object.values(RelationshipType);
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
+
+  // Extract unique types from the actual data
+  const nodeTypes = useMemo(() => getUniqueNodeTypes(graphData), [graphData]);
+  const relationshipTypes = useMemo(() => getUniqueRelationshipTypes(graphData), [graphData]);
+
+  // Generate color map for legend
+  const nodeTypeColors = useMemo(() => {
+    const colorMap = new Map<string, string>();
+    nodeTypes.forEach((type) => {
+      colorMap.set(type, getColorForType(type, isDarkMode));
+    });
+    return colorMap;
+  }, [nodeTypes, isDarkMode]);
 
   const handleNodeTypeToggle = (type: string) => {
     if (selectedNodeTypes.includes(type)) {
@@ -133,7 +152,7 @@ const GraphControls: React.FC<GraphControlsProps> = ({
       <Typography variant="h6" gutterBottom>
         Visibility
       </Typography>
-      <FormGroup>
+      <Stack spacing={1}>
         <FormControlLabel
           control={
             <Switch
@@ -179,7 +198,7 @@ const GraphControls: React.FC<GraphControlsProps> = ({
             </Box>
           }
         />
-      </FormGroup>
+      </Stack>
 
       <Divider sx={{ my: 2 }} />
 
@@ -235,21 +254,32 @@ const GraphControls: React.FC<GraphControlsProps> = ({
             {selectedNodeTypes.length === nodeTypes.length ? 'Deselect All' : 'Select All'}
           </Button>
         </Box>
-        <FormGroup>
-          {nodeTypes.map((type) => (
-            <FormControlLabel
-              key={type}
-              control={
-                <Checkbox
-                  checked={selectedNodeTypes.length === 0 || selectedNodeTypes.includes(type)}
-                  onChange={() => handleNodeTypeToggle(type)}
-                  size="small"
-                />
-              }
-              label={<Typography variant="body2">{type}</Typography>}
-            />
-          ))}
-        </FormGroup>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          {nodeTypes.map((type) => {
+            const isSelected = selectedNodeTypes.length === 0 || selectedNodeTypes.includes(type);
+            return (
+              <Chip
+                key={type}
+                label={type}
+                onClick={() => handleNodeTypeToggle(type)}
+                color={isSelected ? 'primary' : 'default'}
+                variant={isSelected ? 'filled' : 'outlined'}
+                sx={{
+                  bgcolor: isSelected ? nodeTypeColors.get(type) : 'transparent',
+                  borderColor: nodeTypeColors.get(type),
+                  color: isSelected
+                    ? theme.palette.getContrastText(nodeTypeColors.get(type) || '#000')
+                    : 'inherit',
+                  '&:hover': {
+                    bgcolor: isSelected
+                      ? nodeTypeColors.get(type)
+                      : `${nodeTypeColors.get(type)}22`,
+                  },
+                }}
+              />
+            );
+          })}
+        </Stack>
       </Box>
 
       <Divider sx={{ my: 2 }} />
@@ -264,91 +294,73 @@ const GraphControls: React.FC<GraphControlsProps> = ({
               : 'Select All'}
           </Button>
         </Box>
-        <FormGroup>
-          {relationshipTypes.map((type) => (
-            <FormControlLabel
-              key={type}
-              control={
-                <Checkbox
-                  checked={
-                    selectedRelationshipTypes.length === 0 ||
-                    selectedRelationshipTypes.includes(type)
-                  }
-                  onChange={() => handleRelationshipTypeToggle(type)}
-                  size="small"
-                />
-              }
-              label={<Typography variant="body2">{type}</Typography>}
-            />
-          ))}
-        </FormGroup>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          {relationshipTypes.map((type) => {
+            const isSelected =
+              selectedRelationshipTypes.length === 0 || selectedRelationshipTypes.includes(type);
+            return (
+              <Chip
+                key={type}
+                label={type}
+                onClick={() => handleRelationshipTypeToggle(type)}
+                color={isSelected ? 'secondary' : 'default'}
+                variant={isSelected ? 'filled' : 'outlined'}
+              />
+            );
+          })}
+        </Stack>
       </Box>
 
       <Divider sx={{ my: 2 }} />
 
-      {/* Legend */}
+      {/* Legend - Shows only selected types */}
       <Typography variant="h6" gutterBottom>
         Legend
       </Typography>
-      <Stack spacing={1} sx={{ mb: 2 }}>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Box
-            sx={{
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              bgcolor: 'primary.main',
-            }}
-          />
-          <Typography variant="body2">Person</Typography>
-        </Box>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Box
-            sx={{
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              bgcolor: '#7b1fa2',
-            }}
-          />
-          <Typography variant="body2">Company</Typography>
-        </Box>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Box
-            sx={{
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              bgcolor: '#f57c00',
-            }}
-          />
-          <Typography variant="body2">Product</Typography>
-        </Box>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Box
-            sx={{
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              bgcolor: '#c62828',
-            }}
-          />
-          <Typography variant="body2">Location</Typography>
-        </Box>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Box
-            sx={{
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              bgcolor: 'success.main',
-              border: '2px solid',
-              borderColor: 'success.dark',
-            }}
-          />
-          <Typography variant="body2">Proposed New</Typography>
-        </Box>
-      </Stack>
+      <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
+        <Stack spacing={1} sx={{ mb: 2 }}>
+          {/* Show only selected node types (or all if none selected) */}
+          {(selectedNodeTypes.length === 0 ? nodeTypes : selectedNodeTypes).map((type) => (
+            <Box key={type} display="flex" alignItems="center" gap={1}>
+              <Box
+                sx={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  bgcolor: nodeTypeColors.get(type),
+                  flexShrink: 0,
+                }}
+              />
+              <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+                {type}
+              </Typography>
+            </Box>
+          ))}
+
+          {/* Separator if there are node types */}
+          {(selectedNodeTypes.length === 0 ? nodeTypes.length : selectedNodeTypes.length) > 0 && (
+            <Divider sx={{ my: 1 }} />
+          )}
+
+          {/* Proposed new indicator - only show if proposed changes are visible */}
+          {showProposed && (
+            <Box display="flex" alignItems="center" gap={1}>
+              <Box
+                sx={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  bgcolor: 'success.main',
+                  border: '2px solid',
+                  borderColor: 'success.dark',
+                  flexShrink: 0,
+                }}
+              />
+              <Typography variant="body2">Proposed New</Typography>
+            </Box>
+          )}
+        </Stack>
+      </Box>
 
       <Divider sx={{ my: 2 }} />
 

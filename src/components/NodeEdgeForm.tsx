@@ -13,7 +13,6 @@ import {
   Stack,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import { NodeType, RelationshipType } from '../types/graph';
 import type { GraphNode, GraphEdge, NodeProperties, EdgeProperties } from '../types/graph';
 
 interface NodeFormProps {
@@ -23,6 +22,7 @@ interface NodeFormProps {
   onDelete?: (nodeId: string) => void;
   initialData?: GraphNode;
   mode: 'create' | 'edit';
+  availableNodeTypes?: string[]; // Available node types from existing data
 }
 
 interface EdgeFormProps {
@@ -34,6 +34,7 @@ interface EdgeFormProps {
   sourceNodeId?: string;
   targetNodeId?: string;
   mode: 'create' | 'edit';
+  availableRelationshipTypes?: string[]; // Available relationship types from existing data
 }
 
 /**
@@ -46,10 +47,11 @@ export const NodeForm: React.FC<NodeFormProps> = ({
   onDelete,
   initialData,
   mode,
+  availableNodeTypes = [],
 }) => {
   const [nodeId, setNodeId] = useState('');
   const [label, setLabel] = useState('');
-  const [type, setType] = useState<string>(NodeType.PERSON);
+  const [type, setType] = useState<string>('');
   const [properties, setProperties] = useState<Array<{ key: string; value: string }>>([]);
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export const NodeForm: React.FC<NodeFormProps> = ({
       const randomSuffix = Math.random().toString(36).substring(2, 7);
       setNodeId(`node_${timestamp}_${randomSuffix}`);
       setLabel('');
-      setType(NodeType.PERSON);
+      setType(''); // Start with empty string, user can type any value
       setProperties([]);
     }
   }, [initialData, open]);
@@ -155,7 +157,7 @@ export const NodeForm: React.FC<NodeFormProps> = ({
 
           <Autocomplete
             freeSolo
-            options={Object.values(NodeType)}
+            options={availableNodeTypes}
             value={type}
             onChange={(_event, newValue) => {
               setType(newValue || '');
@@ -167,9 +169,10 @@ export const NodeForm: React.FC<NodeFormProps> = ({
               <TextField
                 {...params}
                 label="Type"
-                placeholder="Enter or select a type"
+                placeholder="Enter or select a type (e.g., Person, Company)"
                 size="small"
                 required
+                helperText="Type any value or select from existing types"
               />
             )}
           />
@@ -238,11 +241,12 @@ export const EdgeForm: React.FC<EdgeFormProps> = ({
   sourceNodeId,
   targetNodeId,
   mode,
+  availableRelationshipTypes = [],
 }) => {
   const [edgeId, setEdgeId] = useState('');
   const [source, setSource] = useState('');
   const [target, setTarget] = useState('');
-  const [relationshipType, setRelationshipType] = useState<string>(RelationshipType.WORKS_AT);
+  const [relationshipType, setRelationshipType] = useState<string>('');
   const [properties, setProperties] = useState<Array<{ key: string; value: string }>>([]);
 
   useEffect(() => {
@@ -264,7 +268,7 @@ export const EdgeForm: React.FC<EdgeFormProps> = ({
       setEdgeId(`edge_${timestamp}_${randomSuffix}`);
       setSource(sourceNodeId || '');
       setTarget(targetNodeId || '');
-      setRelationshipType(RelationshipType.WORKS_AT);
+      setRelationshipType(''); // Start with empty string, user can type any value
       setProperties([]);
     }
   }, [initialData, sourceNodeId, targetNodeId, open]);
@@ -367,7 +371,7 @@ export const EdgeForm: React.FC<EdgeFormProps> = ({
 
           <Autocomplete
             freeSolo
-            options={Object.values(RelationshipType)}
+            options={availableRelationshipTypes}
             value={relationshipType}
             onChange={(_event, newValue) => {
               setRelationshipType(newValue || '');
@@ -379,9 +383,10 @@ export const EdgeForm: React.FC<EdgeFormProps> = ({
               <TextField
                 {...params}
                 label="Relationship Type"
-                placeholder="Enter or select a relationship type"
+                placeholder="Enter or select a relationship type (e.g., WORKS_AT)"
                 size="small"
                 required
+                helperText="Type any value or select from existing types"
               />
             )}
           />

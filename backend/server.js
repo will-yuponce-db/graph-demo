@@ -735,6 +735,9 @@ app.patch('/api/graph/status', async (req, res) => {
   const { nodeIds, edgeIds, status } = req.body;
   const startTime = Date.now();
 
+  // Extract user's access token from Databricks Apps header
+  const userAccessToken = req.headers['x-forwarded-access-token'];
+
   if (!status) {
     return res.status(400).json({
       success: false,
@@ -822,6 +825,9 @@ app.patch('/api/graph/status', async (req, res) => {
  */
 app.post('/api/graph/seed', async (req, res) => {
   const startTime = Date.now();
+
+  // Extract user's access token from Databricks Apps header
+  const userAccessToken = req.headers['x-forwarded-access-token'];
 
   try {
     // Close current connection
@@ -913,6 +919,9 @@ app.get('/api/job/:jobId', (req, res) => {
 app.get('/health', (req, res) => {
   const nodes = getAllNodes(db);
   const edges = getAllEdges(db);
+
+  // Extract user's access token from Databricks Apps header
+  const userAccessToken = req.headers['x-forwarded-access-token'];
 
   res.json({
     status: 'ok',
