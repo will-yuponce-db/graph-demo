@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { Box, Paper, Typography, useTheme } from '@mui/material';
+import { Box, Paper, Typography, useTheme, IconButton, Stack, Tooltip } from '@mui/material';
+import { ZoomIn as ZoomInIcon, ZoomOut as ZoomOutIcon } from '@mui/icons-material';
 import type { GraphData, ForceGraphData, ForceGraphNode, ForceGraphLink } from '../types/graph';
 import { ChangeStatus, getColorForType } from '../types/graph';
 
@@ -25,6 +26,8 @@ interface GraphVisualizationProps {
 export interface GraphVisualizationRef {
   resetView: () => void;
   centerOnNode: (nodeId: string) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
 }
 
 const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationProps>(
@@ -130,10 +133,10 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
         const chargeStrength = -(edgeLength * 2.5);
         graphRef.current.d3Force('charge')?.strength(chargeStrength);
 
-        // Restart the simulation with new forces
+        // Only restart the simulation when edge length changes, not on every data update
         graphRef.current.d3ReheatSimulation();
       }
-    }, [graphData, edgeLength]);
+    }, [edgeLength]);
 
     // Expose methods to parent component
     useImperativeHandle(
@@ -152,6 +155,18 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
               graphRef.current.centerAt(node.x, node.y, 1000);
               graphRef.current.zoom(2, 1000);
             }
+          }
+        },
+        zoomIn: () => {
+          if (graphRef.current) {
+            const currentZoom = graphRef.current.zoom();
+            graphRef.current.zoom(currentZoom * 1.3, 300);
+          }
+        },
+        zoomOut: () => {
+          if (graphRef.current) {
+            const currentZoom = graphRef.current.zoom();
+            graphRef.current.zoom(currentZoom / 1.3, 300);
           }
         },
       }),
@@ -182,6 +197,20 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
       },
       [onEdgeClick]
     );
+
+    const handleZoomIn = useCallback(() => {
+      if (graphRef.current) {
+        const currentZoom = graphRef.current.zoom();
+        graphRef.current.zoom(currentZoom * 1.3, 300);
+      }
+    }, []);
+
+    const handleZoomOut = useCallback(() => {
+      if (graphRef.current) {
+        const currentZoom = graphRef.current.zoom();
+        graphRef.current.zoom(currentZoom / 1.3, 300);
+      }
+    }, []);
 
     const paintNode = useCallback(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -385,6 +414,52 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
             d3VelocityDecay={0.3}
           />
         </Box>
+
+        {/* Zoom Controls */}
+        <Stack
+          spacing={1}
+          sx={{
+            position: 'absolute',
+            bottom: 16,
+            right: 16,
+            zIndex: 1000,
+          }}
+        >
+          <Tooltip title="Zoom In" placement="left">
+            <Paper elevation={3}>
+              <IconButton
+                onClick={handleZoomIn}
+                color="primary"
+                size="medium"
+                sx={{
+                  bgcolor: theme.palette.background.paper,
+                  '&:hover': {
+                    bgcolor: theme.palette.action.hover,
+                  },
+                }}
+              >
+                <ZoomInIcon />
+              </IconButton>
+            </Paper>
+          </Tooltip>
+          <Tooltip title="Zoom Out" placement="left">
+            <Paper elevation={3}>
+              <IconButton
+                onClick={handleZoomOut}
+                color="primary"
+                size="medium"
+                sx={{
+                  bgcolor: theme.palette.background.paper,
+                  '&:hover': {
+                    bgcolor: theme.palette.action.hover,
+                  },
+                }}
+              >
+                <ZoomOutIcon />
+              </IconButton>
+            </Paper>
+          </Tooltip>
+        </Stack>
 
         {/* Hover tooltip */}
         {hoveredNode && (

@@ -36,7 +36,9 @@ const USE_BACKEND_API = import.meta.env.VITE_USE_BACKEND_API !== 'false';
  * Fetch graph data from backend API or use mock data
  * The backend API connects to Databricks SQL warehouse
  */
-export const fetchGraphData = async (): Promise<{
+export const fetchGraphData = async (
+  tableName?: string
+): Promise<{
   nodes: GraphNode[];
   edges: GraphEdge[];
   metadata?: {
@@ -62,7 +64,11 @@ export const fetchGraphData = async (): Promise<{
 
   try {
     console.log('🔗 Fetching graph data from backend API...');
-    const response = await fetch(`${API_BASE_URL}/graph`);
+    const url = new URL(`${API_BASE_URL}/graph`);
+    if (tableName) {
+      url.searchParams.append('tableName', tableName);
+    }
+    const response = await fetch(url.toString());
 
     if (!response.ok) {
       throw new Error(`Backend API returned ${response.status}: ${response.statusText}`);
@@ -99,7 +105,8 @@ export const fetchGraphData = async (): Promise<{
  */
 export const writeToTable = async (
   nodes: GraphNode[],
-  edges: GraphEdge[]
+  edges: GraphEdge[],
+  tableName?: string
 ): Promise<WriteToTableResponse> => {
   // Filter for new nodes and edges only
   const newNodes = nodes.filter((n) => n.status === ChangeStatus.NEW);
@@ -135,7 +142,11 @@ export const writeToTable = async (
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/graph`, {
+    const url = new URL(`${API_BASE_URL}/graph`);
+    if (tableName) {
+      url.searchParams.append('tableName', tableName);
+    }
+    const response = await fetch(url.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

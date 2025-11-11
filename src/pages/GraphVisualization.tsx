@@ -14,12 +14,20 @@ import {
   Alert,
   CircularProgress,
   Chip,
+  TextField,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   Save as SaveIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   Refresh as RefreshIcon,
+  Edit as EditIcon,
+  Check as CheckIcon,
+  Close as CloseIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
 } from '@mui/icons-material';
 import GraphVisualization, { type GraphVisualizationRef } from '../components/GraphVisualization';
 import GraphControls from '../components/GraphControls';
@@ -64,6 +72,7 @@ const GraphVisualizationPage: React.FC = () => {
   const [showEdgeLabels, setShowEdgeLabels] = useState(false);
   const [edgeLength, setEdgeLength] = useState(80);
   const [nodeSize, setNodeSize] = useState(6);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [initialData, setInitialData] = useState<GraphData>({ nodes: [], edges: [] });
@@ -84,6 +93,15 @@ const GraphVisualizationPage: React.FC = () => {
     message: '',
     severity: 'info',
   });
+
+  // Table configuration state
+  const [tableName, setTableName] = useState<string>(() => {
+    return (
+      localStorage.getItem('databricksTableName') || 'main.default.property_graph_entity_edges'
+    );
+  });
+  const [tableNameInput, setTableNameInput] = useState<string>(tableName);
+  const [isEditingTableName, setIsEditingTableName] = useState(false);
 
   // Node/Edge form state
   const [nodeFormOpen, setNodeFormOpen] = useState(false);
@@ -110,6 +128,25 @@ const GraphVisualizationPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleSaveTableName = () => {
+    const trimmedName = tableNameInput.trim();
+    if (trimmedName) {
+      setTableName(trimmedName);
+      localStorage.setItem('databricksTableName', trimmedName);
+      setIsEditingTableName(false);
+      setSnackbar({
+        open: true,
+        message: `Table name updated to: ${trimmedName}. Click Refresh to load data from the new table.`,
+        severity: 'info',
+      });
+    }
+  };
+
+  const handleCancelEditTableName = () => {
+    setTableNameInput(tableName);
+    setIsEditingTableName(false);
+  };
+
   const loadGraphData = async () => {
     setIsLoadingData(true);
     setDataError(null);
@@ -118,7 +155,7 @@ const GraphVisualizationPage: React.FC = () => {
     const useBackend = import.meta.env.VITE_USE_BACKEND_API !== 'false';
 
     try {
-      const response = await fetchGraphData();
+      const response = await fetchGraphData(tableName);
       setInitialData({ nodes: response.nodes, edges: response.edges });
       editor.resetToInitialData({ nodes: response.nodes, edges: response.edges });
 
@@ -287,15 +324,30 @@ const GraphVisualizationPage: React.FC = () => {
         }
       }
 
-      // Escape to cancel edge creation mode
-      if (e.key === 'Escape' && editor.isEdgeCreateMode) {
-        editor.cancelEdgeCreateMode();
+      // F key to toggle fullscreen
+      if (e.key === 'f' || e.key === 'F') {
+        // Only if not typing in an input field
+        if (
+          document.activeElement?.tagName !== 'INPUT' &&
+          document.activeElement?.tagName !== 'TEXTAREA'
+        ) {
+          setIsFullscreen((prev) => !prev);
+        }
+      }
+
+      // Escape to cancel edge creation mode or exit fullscreen
+      if (e.key === 'Escape') {
+        if (editor.isEdgeCreateMode) {
+          editor.cancelEdgeCreateMode();
+        } else if (isFullscreen) {
+          setIsFullscreen(false);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editor]);
+  }, [editor, isFullscreen]);
 
   // Save to backend
   const handleWriteToTable = async () => {
@@ -304,7 +356,11 @@ const GraphVisualizationPage: React.FC = () => {
 
     try {
       // Only send NEW nodes and edges to backend
-      const result = await writeToTable(editor.userCreatedNodes, editor.userCreatedEdges);
+      const result = await writeToTable(
+        editor.userCreatedNodes,
+        editor.userCreatedEdges,
+        tableName
+      );
 
       if (result.success) {
         // Get IDs of items being saved
@@ -348,121 +404,236 @@ const GraphVisualizationPage: React.FC = () => {
   const hasProposedChanges = newNodesCount > 0 || newEdgesCount > 0;
 
   return (
-    <Container maxWidth={false} sx={{ minHeight: '100vh', py: 3 }}>
-      <Box sx={{ mb: 3 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-          <Box>
-            <Typography variant="h4" gutterBottom>
-              Graph Editor
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Create and edit graph nodes and relationships, then save to database
-            </Typography>
+    <Container
+      maxWidth={false}
+      sx={{
+        minHeight: '100vh',
+        height: isFullscreen ? '100vh' : undefined,
+        py: isFullscreen ? 0 : 3,
+        px: isFullscreen ? 0 : undefined,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {!isFullscreen && (
+        <Box sx={{ mb: 3, flexShrink: 0 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+            <Box>
+              <Typography variant="h4" gutterBottom>
+                Graph Editor
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Create and edit graph nodes and relationships, then save to database
+              </Typography>
+            </Box>
+            <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={isLoadingData ? <CircularProgress size={20} /> : <RefreshIcon />}
+                onClick={loadGraphData}
+                disabled={isLoadingData}
+              >
+                Refresh
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                onClick={() => setConfirmDialogOpen(true)}
+                disabled={!hasProposedChanges || loading || isLoadingData}
+              >
+                Save to Database ({newNodesCount} nodes, {newEdgesCount} edges)
+              </Button>
+            </Box>
           </Box>
-          <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={isLoadingData ? <CircularProgress size={20} /> : <RefreshIcon />}
-              onClick={loadGraphData}
-              disabled={isLoadingData}
-            >
-              Refresh
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              size="large"
-              startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-              onClick={() => setConfirmDialogOpen(true)}
-              disabled={!hasProposedChanges || loading || isLoadingData}
-            >
-              Save to Database ({newNodesCount} nodes, {newEdgesCount} edges)
-            </Button>
-          </Box>
-        </Box>
 
-        {/* Connection Info Banner */}
-        <Paper
-          sx={{
-            p: 2,
-            bgcolor: dataError ? 'error.main' : isUsingMockData ? 'warning.main' : 'info.main',
-            color: dataError
-              ? 'error.contrastText'
-              : isUsingMockData
-                ? 'warning.contrastText'
-                : 'info.contrastText',
-          }}
-        >
-          <Typography variant="body2">
-            {dataError ? (
-              <>
-                <strong>Connection Error:</strong> {dataError}
-              </>
-            ) : isUsingMockData ? (
-              <>
-                <strong>Demo Mode:</strong> Using SQLite database. Changes will be saved locally.
-                <br />
-                To sync with Databricks, configure DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET
-                in backend/.env
-              </>
-            ) : (
-              <>
-                <strong>Connected:</strong> Backend API →{' '}
-                {dbMetadata.databricksEnabled ? 'Databricks (with SQLite fallback)' : 'SQLite only'}
-                {dbMetadata.databricksError && (
-                  <>
-                    <br />
-                    <small>⚠️ Databricks unavailable: {dbMetadata.databricksError}</small>
-                  </>
-                )}
-              </>
-            )}
-          </Typography>
-        </Paper>
-      </Box>
-
-      <Grid container spacing={3} sx={{ height: 'calc(100vh - 200px)' }}>
-        {/* Node Palette */}
-        <Grid size={{ xs: 12, md: 2.5 }}>
-          <NodePalette
-            onStartCreateNode={handleStartCreateNode}
-            onStartCreateEdge={handleStartCreateEdge}
-            isEdgeCreateMode={editor.isEdgeCreateMode}
-            disabled={isLoadingData}
-          />
-        </Grid>
-
-        {/* Graph Visualization */}
-        <Grid size={{ xs: 12, md: 6.5 }}>
+          {/* Connection Info Banner */}
           <Paper
-            ref={graphContainerRef}
             sx={{
-              height: '100%',
               p: 2,
-              display: 'flex',
-              flexDirection: 'column',
+              bgcolor: dataError ? 'error.main' : isUsingMockData ? 'warning.main' : 'info.main',
+              color: dataError
+                ? 'error.contrastText'
+                : isUsingMockData
+                  ? 'warning.contrastText'
+                  : 'info.contrastText',
             }}
           >
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Knowledge Graph Editor</Typography>
-              <Box display="flex" gap={1}>
+            <Typography variant="body2">
+              {dataError ? (
+                <>
+                  <strong>Connection Error:</strong> {dataError}
+                </>
+              ) : isUsingMockData ? (
+                <>
+                  <strong>Demo Mode:</strong> Using SQLite database. Changes will be saved locally.
+                  <br />
+                  To sync with Databricks, configure DATABRICKS_CLIENT_ID and
+                  DATABRICKS_CLIENT_SECRET in backend/.env
+                </>
+              ) : (
+                <>
+                  <strong>Connected:</strong> Backend API →{' '}
+                  {dbMetadata.databricksEnabled
+                    ? 'Databricks (with SQLite fallback)'
+                    : 'SQLite only'}
+                  {dbMetadata.databricksError && (
+                    <>
+                      <br />
+                      <small>⚠️ Databricks unavailable: {dbMetadata.databricksError}</small>
+                    </>
+                  )}
+                </>
+              )}
+            </Typography>
+          </Paper>
+
+          {/* Table Configuration */}
+          <Paper sx={{ p: 2, mt: 2 }}>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Typography variant="body2" fontWeight="bold" sx={{ minWidth: '120px' }}>
+                Databricks Table:
+              </Typography>
+              {isEditingTableName ? (
+                <>
+                  <TextField
+                    size="small"
+                    fullWidth
+                    value={tableNameInput}
+                    onChange={(e) => setTableNameInput(e.target.value)}
+                    placeholder="e.g., main.default.property_graph_entity_edges"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSaveTableName();
+                      } else if (e.key === 'Escape') {
+                        handleCancelEditTableName();
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <Tooltip title="Save">
+                    <IconButton
+                      color="primary"
+                      onClick={handleSaveTableName}
+                      disabled={!tableNameInput.trim()}
+                    >
+                      <CheckIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Cancel">
+                    <IconButton color="default" onClick={handleCancelEditTableName}>
+                      <CloseIcon />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              ) : (
+                <>
+                  <Typography variant="body2" sx={{ flexGrow: 1, fontFamily: 'monospace' }}>
+                    {tableName}
+                  </Typography>
+                  <Tooltip title="Edit table name">
+                    <IconButton
+                      size="small"
+                      onClick={() => setIsEditingTableName(true)}
+                      disabled={isLoadingData}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Specify the Databricks table to read from and write to. Format:
+              catalog.schema.table_name
+            </Typography>
+          </Paper>
+        </Box>
+      )}
+
+      <Grid
+        container
+        spacing={isFullscreen ? 0 : 3}
+        sx={{
+          flexGrow: 1,
+          minHeight: isFullscreen ? 0 : '700px',
+          height: isFullscreen ? '100vh' : undefined,
+        }}
+      >
+        {/* Node Palette */}
+        {!isFullscreen && (
+          <Grid size={{ xs: 12, md: 2 }} sx={{ minHeight: '700px' }}>
+            <NodePalette
+              onStartCreateNode={handleStartCreateNode}
+              onStartCreateEdge={handleStartCreateEdge}
+              isEdgeCreateMode={editor.isEdgeCreateMode}
+              disabled={isLoadingData}
+            />
+          </Grid>
+        )}
+
+        {/* Graph Visualization */}
+        <Grid
+          size={{ xs: 12, md: isFullscreen ? 12 : 7.5 }}
+          sx={{
+            minHeight: isFullscreen ? undefined : '700px',
+            height: isFullscreen ? '100vh' : undefined,
+          }}
+        >
+          <Paper
+            ref={graphContainerRef}
+            elevation={isFullscreen ? 0 : 1}
+            sx={{
+              height: '100%',
+              p: isFullscreen ? 0 : 2,
+              display: 'flex',
+              flexDirection: 'column',
+              borderRadius: isFullscreen ? 0 : undefined,
+            }}
+          >
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              mb={isFullscreen ? 1 : 2}
+              sx={{ flexShrink: 0, px: isFullscreen ? 2 : 0, pt: isFullscreen ? 1 : 0 }}
+            >
+              {!isFullscreen && <Typography variant="h6">Knowledge Graph Editor</Typography>}
+              <Box
+                display="flex"
+                gap={1}
+                alignItems="center"
+                sx={{ ml: isFullscreen ? 'auto' : 0 }}
+              >
                 <Chip label={`${stats.existingNodes} Existing`} color="primary" size="small" />
                 {hasProposedChanges && (
                   <Chip label={`${stats.newNodes} New`} color="success" size="small" />
                 )}
+                <Tooltip title={isFullscreen ? 'Exit Fullscreen (Esc or F)' : 'Fullscreen (F)'}>
+                  <IconButton
+                    onClick={() => setIsFullscreen(!isFullscreen)}
+                    color="primary"
+                    size="small"
+                  >
+                    {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                  </IconButton>
+                </Tooltip>
               </Box>
             </Box>
 
             {/* Node Search */}
-            <Box sx={{ mb: 2 }}>
-              <NodeSearch
-                graphData={editor.graphData}
-                onNodeSelect={handleNodeSearchSelect}
-                disabled={isLoadingData}
-              />
-            </Box>
-            <Box sx={{ flexGrow: 1, position: 'relative' }}>
+            {!isFullscreen && (
+              <Box sx={{ mb: 2, flexShrink: 0 }}>
+                <NodeSearch
+                  graphData={editor.graphData}
+                  onNodeSelect={handleNodeSearchSelect}
+                  disabled={isLoadingData}
+                />
+              </Box>
+            )}
+            <Box sx={{ flexGrow: 1, position: 'relative', minHeight: 0 }}>
               {isLoadingData ? (
                 <Box display="flex" justifyContent="center" alignItems="center" height="100%">
                   <Box textAlign="center">
@@ -503,8 +674,8 @@ const GraphVisualizationPage: React.FC = () => {
                   showEdgeLabels={showEdgeLabels}
                   edgeLength={edgeLength}
                   nodeSize={nodeSize}
-                  width={graphDimensions.width - 32}
-                  height={graphDimensions.height - 100}
+                  width={isFullscreen ? graphDimensions.width : graphDimensions.width - 32}
+                  height={isFullscreen ? graphDimensions.height - 60 : graphDimensions.height - 140}
                   onNodeClick={(nodeId) => {
                     if (editor.isEdgeCreateMode) {
                       handleNodeClickForEdge(nodeId);
@@ -527,27 +698,29 @@ const GraphVisualizationPage: React.FC = () => {
         </Grid>
 
         {/* Controls Panel */}
-        <Grid size={{ xs: 12, md: 3 }}>
-          <GraphControls
-            showProposed={showProposed}
-            onToggleProposed={setShowProposed}
-            selectedNodeTypes={selectedNodeTypes}
-            onNodeTypeChange={setSelectedNodeTypes}
-            selectedRelationshipTypes={selectedRelationshipTypes}
-            onRelationshipTypeChange={setSelectedRelationshipTypes}
-            showNodeLabels={showNodeLabels}
-            onToggleNodeLabels={setShowNodeLabels}
-            showEdgeLabels={showEdgeLabels}
-            onToggleEdgeLabels={setShowEdgeLabels}
-            edgeLength={edgeLength}
-            onEdgeLengthChange={setEdgeLength}
-            nodeSize={nodeSize}
-            onNodeSizeChange={setNodeSize}
-            onResetView={handleResetView}
-            graphData={editor.graphData}
-            stats={stats}
-          />
-        </Grid>
+        {!isFullscreen && (
+          <Grid size={{ xs: 12, md: 2.5 }} sx={{ minHeight: '700px' }}>
+            <GraphControls
+              showProposed={showProposed}
+              onToggleProposed={setShowProposed}
+              selectedNodeTypes={selectedNodeTypes}
+              onNodeTypeChange={setSelectedNodeTypes}
+              selectedRelationshipTypes={selectedRelationshipTypes}
+              onRelationshipTypeChange={setSelectedRelationshipTypes}
+              showNodeLabels={showNodeLabels}
+              onToggleNodeLabels={setShowNodeLabels}
+              showEdgeLabels={showEdgeLabels}
+              onToggleEdgeLabels={setShowEdgeLabels}
+              edgeLength={edgeLength}
+              onEdgeLengthChange={setEdgeLength}
+              nodeSize={nodeSize}
+              onNodeSizeChange={setNodeSize}
+              onResetView={handleResetView}
+              graphData={editor.graphData}
+              stats={stats}
+            />
+          </Grid>
+        )}
       </Grid>
 
       {/* Node Form Dialog */}

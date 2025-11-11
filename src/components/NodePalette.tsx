@@ -16,7 +16,7 @@ const NodePalette: React.FC<NodePaletteProps> = ({
   disabled = false,
 }) => {
   return (
-    <Paper sx={{ p: 2, height: '100%', overflow: 'auto' }}>
+    <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Typography variant="h6" gutterBottom>
         Create
       </Typography>

@@ -123,10 +123,37 @@ const DATABRICKS_CONFIG = {
   clientSecret: process.env.DATABRICKS_CLIENT_SECRET,
 };
 
-const TABLE_NAME = process.env.DATABRICKS_TABLE || 'main.default.property_graph_entity_edges';
+const DEFAULT_TABLE_NAME =
+  process.env.DATABRICKS_TABLE || 'main.default.property_graph_entity_edges';
 
 // Note: Databricks authentication now uses ONLY user OAuth tokens
 // from X-Forwarded-Access-Token header (provided by Databricks Apps)
+
+/**
+ * Validate and sanitize table name to prevent SQL injection
+ * Table names should be in format: catalog.schema.table or schema.table or table
+ * Only allows alphanumeric, underscores, dots, and backticks
+ */
+function validateTableName(tableName) {
+  if (!tableName) {
+    return DEFAULT_TABLE_NAME;
+  }
+
+  // Remove any whitespace
+  const trimmed = tableName.trim();
+
+  // Check for valid table name pattern (catalog.schema.table or schema.table or table)
+  // Allows alphanumeric, underscores, dots, and backticks for escaped identifiers
+  const validPattern = /^[a-zA-Z0-9_`]+(\.[a-zA-Z0-9_`]+){0,2}$/;
+
+  if (!validPattern.test(trimmed)) {
+    throw new Error(
+      'Invalid table name format. Use: catalog.schema.table or schema.table or table'
+    );
+  }
+
+  return trimmed;
+}
 
 /**
  * Sanitize error messages for client responses
@@ -206,7 +233,7 @@ logger.info({
   databricks: {
     authMode: 'user_oauth_only',
     host: DATABRICKS_CONFIG.host,
-    table: TABLE_NAME,
+    defaultTable: DEFAULT_TABLE_NAME,
     path: DATABRICKS_CONFIG.path,
     note: 'Requires X-Forwarded-Access-Token header from Databricks Apps',
   },
@@ -276,15 +303,16 @@ async function createDatabricksConnection(userAccessToken) {
 /**
  * Read graph data from Databricks using user's OAuth token
  * @param {string} userAccessToken - Required user access token
+ * @param {string} tableName - Table name to query
  */
-async function readFromDatabricks(userAccessToken) {
+async function readFromDatabricks(userAccessToken, tableName) {
   let connection;
 
   try {
     connection = await createDatabricksConnection(userAccessToken);
     const session = await connection.openSession();
 
-    const query = `SELECT * FROM ${TABLE_NAME}`;
+    const query = `SELECT * FROM ${tableName}`;
     const queryOperation = await session.executeStatement(query, {
       runAsync: false,
     });
@@ -358,7 +386,7 @@ async function readFromDatabricks(userAccessToken) {
     logger.databricks('ERROR', {
       operation: 'read',
       status: 'failed',
-      query: `SELECT * FROM ${TABLE_NAME}`,
+      query: `SELECT * FROM ${tableName}`,
       error: error.message,
       errorType: error.constructor.name,
       statusCode: error.statusCode,
@@ -383,8 +411,9 @@ async function readFromDatabricks(userAccessToken) {
  * @param {Array} nodes - Nodes to write
  * @param {Array} edges - Edges to write
  * @param {string} userAccessToken - Required user access token
+ * @param {string} tableName - Table name to write to
  */
-async function writeToDatabricks(nodes, edges, userAccessToken) {
+async function writeToDatabricks(nodes, edges, userAccessToken, tableName) {
   let connection;
 
   try {
@@ -402,7 +431,7 @@ async function writeToDatabricks(nodes, edges, userAccessToken) {
       }
 
       const query = `
-        INSERT INTO ${TABLE_NAME} (
+        INSERT INTO ${tableName} (
           node_start_id,
           node_start_key,
           relationship,
@@ -443,7 +472,7 @@ async function writeToDatabricks(nodes, edges, userAccessToken) {
     logger.databricks('ERROR', {
       operation: 'write',
       status: 'failed',
-      table: TABLE_NAME,
+      table: tableName,
       nodeCount: nodes.length,
       edgeCount: edges.length,
       error: error.message,
@@ -469,12 +498,25 @@ async function writeToDatabricks(nodes, edges, userAccessToken) {
  * GET /api/graph
  * Fetch graph data - tries Databricks first, falls back to SQLite
  * Uses user's access token if available (X-Forwarded-Access-Token header)
+ * Accepts optional tableName query parameter
  */
 app.get('/api/graph', async (req, res) => {
   const startTime = Date.now();
   let nodes, edges;
   let source = 'SQLite';
   let databricksError = null;
+
+  // Extract table name from query parameter
+  let tableName;
+  try {
+    tableName = validateTableName(req.query.tableName);
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 
   // Extract user's access token from Databricks Apps header
   const userAccessToken = req.headers['x-forwarded-access-token'];
@@ -488,6 +530,7 @@ app.get('/api/graph', async (req, res) => {
       hasToken: true,
       tokenLength: userAccessToken.length,
       tokenPrefix: userAccessToken.substring(0, 10) + '...',
+      tableName,
     });
   } else {
     logger.info({
@@ -495,6 +538,7 @@ app.get('/api/graph', async (req, res) => {
       endpoint: 'GET /api/graph',
       email: userEmail,
       hasToken: false,
+      tableName,
       availableHeaders: Object.keys(req.headers).filter((h) => h.startsWith('x-forwarded')),
     });
   }
@@ -503,7 +547,7 @@ app.get('/api/graph', async (req, res) => {
     // Try Databricks only if user token is available
     if (userAccessToken) {
       try {
-        const data = await readFromDatabricks(userAccessToken);
+        const data = await readFromDatabricks(userAccessToken, tableName);
         nodes = data.nodes;
         edges = data.edges;
         source = 'Databricks (user auth)';
@@ -514,6 +558,7 @@ app.get('/api/graph', async (req, res) => {
           endpoint: 'GET /api/graph',
           reason: 'databricks_failed',
           error: sanitizeErrorForClient(dbError),
+          tableName,
         });
 
         // Fall back to SQLite
@@ -549,6 +594,7 @@ app.get('/api/graph', async (req, res) => {
       metadata: {
         source,
         userAuth: !!userAccessToken,
+        databricksEnabled: !!userAccessToken,
         databricksError: sanitizeErrorForClient(databricksError),
         timestamp: new Date().toISOString(),
         duration: `${duration}ms`,
@@ -576,6 +622,7 @@ app.get('/api/graph', async (req, res) => {
       metadata: {
         source: 'error',
         userAuth: !!userAccessToken,
+        databricksEnabled: !!userAccessToken,
         databricksError: sanitizeErrorForClient(databricksError || error),
         timestamp: new Date().toISOString(),
         duration: `${duration}ms`,
@@ -589,6 +636,7 @@ app.get('/api/graph', async (req, res) => {
  * Write new nodes and edges to database
  * Tries Databricks first, falls back to SQLite on failure
  * Uses user's access token if available (X-Forwarded-Access-Token header)
+ * Accepts optional tableName query parameter
  */
 app.post('/api/graph', async (req, res) => {
   const { nodes, edges } = req.body;
@@ -609,6 +657,18 @@ app.post('/api/graph', async (req, res) => {
     });
   }
 
+  // Extract table name from query parameter
+  let tableName;
+  try {
+    tableName = validateTableName(req.query.tableName);
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   const startTime = Date.now();
   let target = 'SQLite';
   let writeError = null;
@@ -625,6 +685,7 @@ app.post('/api/graph', async (req, res) => {
       hasToken: true,
       tokenLength: userAccessToken.length,
       tokenPrefix: userAccessToken.substring(0, 10) + '...',
+      tableName,
     });
   } else {
     logger.info({
@@ -632,6 +693,7 @@ app.post('/api/graph', async (req, res) => {
       endpoint: 'POST /api/graph',
       email: userEmail,
       hasToken: false,
+      tableName,
       availableHeaders: Object.keys(req.headers).filter((h) => h.startsWith('x-forwarded')),
     });
   }
@@ -640,7 +702,7 @@ app.post('/api/graph', async (req, res) => {
     // Try writing to Databricks only if user token is available
     if (userAccessToken) {
       try {
-        await writeToDatabricks(nodes, edges, userAccessToken);
+        await writeToDatabricks(nodes, edges, userAccessToken, tableName);
         target = 'Databricks (user auth)';
       } catch (error) {
         writeError = error.message;
@@ -649,6 +711,7 @@ app.post('/api/graph', async (req, res) => {
           endpoint: 'POST /api/graph',
           reason: 'databricks_failed',
           error: sanitizeErrorForClient(error),
+          tableName,
         });
 
         // Fall back to SQLite
@@ -692,6 +755,7 @@ app.post('/api/graph', async (req, res) => {
       metadata: {
         source: target,
         userAuth: !!userAccessToken,
+        databricksEnabled: !!userAccessToken,
         databricksError: sanitizedError,
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
@@ -718,6 +782,7 @@ app.post('/api/graph', async (req, res) => {
       metadata: {
         source: 'error',
         userAuth: !!userAccessToken,
+        databricksEnabled: !!userAccessToken,
         databricksError: sanitizeErrorForClient(writeError || error),
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
@@ -744,6 +809,7 @@ app.patch('/api/graph/status', async (req, res) => {
       message: 'Missing status in request body',
       source: 'error',
       userAuth: !!userAccessToken,
+      databricksEnabled: !!userAccessToken,
       databricksError: null,
       timestamp: new Date().toISOString(),
       duration: '0ms',
@@ -777,6 +843,7 @@ app.patch('/api/graph/status', async (req, res) => {
       message: `Updated ${(nodeIds?.length || 0) + (edgeIds?.length || 0)} items to status: ${status}`,
       source: 'SQLite',
       userAuth: !!userAccessToken,
+      databricksEnabled: !!userAccessToken,
       databricksError: null,
       timestamp: new Date().toISOString(),
       duration: `${totalDuration}ms`,
@@ -785,6 +852,7 @@ app.patch('/api/graph/status', async (req, res) => {
       metadata: {
         source: 'SQLite',
         userAuth: !!userAccessToken,
+        databricksEnabled: !!userAccessToken,
         databricksError: null,
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
@@ -805,12 +873,14 @@ app.patch('/api/graph/status', async (req, res) => {
       message: `Failed to update status: ${sanitizeErrorForClient(error)}`,
       source: 'error',
       userAuth: !!userAccessToken,
+      databricksEnabled: !!userAccessToken,
       databricksError: null,
       timestamp: new Date().toISOString(),
       duration: `${totalDuration}ms`,
       metadata: {
         source: 'error',
         userAuth: !!userAccessToken,
+        databricksEnabled: !!userAccessToken,
         databricksError: null,
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
@@ -857,6 +927,7 @@ app.post('/api/graph/seed', async (req, res) => {
       message: 'Database reseeded successfully',
       source: 'SQLite',
       userAuth: !!userAccessToken,
+      databricksEnabled: !!userAccessToken,
       databricksError: null,
       timestamp: new Date().toISOString(),
       duration: `${totalDuration}ms`,
@@ -865,6 +936,7 @@ app.post('/api/graph/seed', async (req, res) => {
       metadata: {
         source: 'SQLite',
         userAuth: !!userAccessToken,
+        databricksEnabled: !!userAccessToken,
         databricksError: null,
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
@@ -885,12 +957,14 @@ app.post('/api/graph/seed', async (req, res) => {
       message: `Failed to reseed database: ${sanitizeErrorForClient(error)}`,
       source: 'error',
       userAuth: !!userAccessToken,
+      databricksEnabled: !!userAccessToken,
       databricksError: null,
       timestamp: new Date().toISOString(),
       duration: `${totalDuration}ms`,
       metadata: {
         source: 'error',
         userAuth: !!userAccessToken,
+        databricksEnabled: !!userAccessToken,
         databricksError: null,
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
@@ -928,6 +1002,7 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     source: 'Databricks (user OAuth) + SQLite (fallback)',
     userAuth: !!userAccessToken,
+    databricksEnabled: !!userAccessToken,
     databricksError: null,
     timestamp: new Date().toISOString(),
     database: {
@@ -938,11 +1013,12 @@ app.get('/health', (req, res) => {
     databricks: {
       authMode: 'user_oauth_only',
       host: DATABRICKS_CONFIG.host,
-      table: TABLE_NAME,
+      defaultTable: DEFAULT_TABLE_NAME,
     },
     metadata: {
       source: 'Databricks (user OAuth) + SQLite (fallback)',
       userAuth: !!userAccessToken,
+      databricksEnabled: !!userAccessToken,
       databricksError: null,
       timestamp: new Date().toISOString(),
     },
