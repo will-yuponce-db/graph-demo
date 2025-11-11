@@ -36,7 +36,7 @@ import NodeSearch from '../components/NodeSearch';
 import { NodeForm, EdgeForm } from '../components/NodeEdgeForm';
 import { useGraphEditor } from '../hooks/useGraphEditor';
 import type { GraphData, GraphStats, GraphNode, GraphEdge } from '../types/graph';
-import { writeToTable, fetchGraphData, updateItemsStatus } from '../services/graphApi';
+import { writeToTable, fetchGraphData } from '../services/graphApi';
 import { ChangeStatus, getUniqueNodeTypes, getUniqueRelationshipTypes } from '../types/graph';
 
 // Helper function to calculate graph stats
@@ -367,12 +367,8 @@ const GraphVisualizationPage: React.FC = () => {
         const nodeIds = editor.userCreatedNodes.map((n) => n.id);
         const edgeIds = editor.userCreatedEdges.map((e) => e.id);
 
-        // Update status in database
-        if (nodeIds.length > 0 || edgeIds.length > 0) {
-          await updateItemsStatus(nodeIds, edgeIds, ChangeStatus.EXISTING);
-        }
-
-        // Mark items as saved in local state
+        // Mark items as saved in local state (frontend-only)
+        // Status is not stored in Databricks, only used for frontend UI
         editor.markItemsAsSaved(nodeIds, edgeIds);
 
         setSnackbar({

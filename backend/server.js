@@ -794,7 +794,12 @@ app.post('/api/graph', async (req, res) => {
 /**
  * PATCH /api/graph/status
  * Update status of nodes and edges (e.g., from 'new' to 'existing')
- * Note: Status updates are currently SQLite-only as Databricks table doesn't have status field
+ *
+ * IMPORTANT: This endpoint is DEPRECATED and SQLite-only.
+ * - Status is frontend UI state only (to show "proposed" vs "existing" nodes)
+ * - Databricks table does NOT have a status column
+ * - Status should be managed in frontend state, not persisted to Databricks
+ * - This endpoint only exists for local SQLite persistence between sessions
  */
 app.patch('/api/graph/status', async (req, res) => {
   const { nodeIds, edgeIds, status } = req.body;

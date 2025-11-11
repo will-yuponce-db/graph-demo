@@ -235,8 +235,14 @@ export const checkJobStatus = async (
 };
 
 /**
- * Update the status of nodes and edges in the database
- * Called after successful save to mark items as EXISTING
+ * DEPRECATED: Update the status of nodes and edges in the database
+ *
+ * This function is no longer used. Status should be managed in frontend state only.
+ * - Databricks table does NOT have a status column
+ * - Status is frontend UI state only (to show "proposed" vs "existing" nodes)
+ * - This function only updates SQLite, which is only useful for local development
+ *
+ * @deprecated Use frontend state management instead (e.g., editor.markItemsAsSaved)
  */
 export const updateItemsStatus = async (
   nodeIds: string[],
