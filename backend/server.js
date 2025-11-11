@@ -342,22 +342,32 @@ async function readFromDatabricks(userAccessToken, tableName) {
 
       // Add source node (use node_start_key as the type, which appears to be the entity type)
       if (!nodesMap.has(row.node_start_id)) {
+        // Extract label from properties or fallback to ID
+        const label = startProps._label || startProps.label || row.node_start_id;
+        // Remove _label from properties if it exists (it's metadata, not a real property)
+        const { _label, ...nodeProps } = startProps;
+
         nodesMap.set(row.node_start_id, {
           id: row.node_start_id,
-          label: row.node_start_id, // Use ID as label
+          label: label,
           type: row.node_start_key || 'Unknown', // node_start_key is the entity type (e.g., "Customer")
-          properties: startProps,
+          properties: nodeProps,
           status: 'existing',
         });
       }
 
       // Add target node (use node_end_key as the type)
       if (!nodesMap.has(row.node_end_id)) {
+        // Extract label from properties or fallback to ID
+        const label = endProps._label || endProps.label || row.node_end_id;
+        // Remove _label from properties if it exists (it's metadata, not a real property)
+        const { _label, ...nodeProps } = endProps;
+
         nodesMap.set(row.node_end_id, {
           id: row.node_end_id,
-          label: row.node_end_id, // Use ID as label
+          label: label,
           type: row.node_end_key || 'Unknown', // node_end_key is the entity type (e.g., "Account")
-          properties: endProps,
+          properties: nodeProps,
           status: 'existing',
         });
       }
@@ -430,6 +440,10 @@ async function writeToDatabricks(nodes, edges, userAccessToken, tableName) {
         continue;
       }
 
+      // Include label in properties for storage (using _label to avoid conflicts)
+      const sourceProps = { ...sourceNode.properties, _label: sourceNode.label };
+      const targetProps = { ...targetNode.properties, _label: targetNode.label };
+
       const query = `
         INSERT INTO ${tableName} (
           node_start_id,
@@ -445,8 +459,8 @@ async function writeToDatabricks(nodes, edges, userAccessToken, tableName) {
           '${edge.relationshipType}',
           '${targetNode.id}',
           '${targetNode.type}',
-          '${JSON.stringify(sourceNode.properties).replace(/'/g, "''")}',
-          '${JSON.stringify(targetNode.properties).replace(/'/g, "''")}'
+          '${JSON.stringify(sourceProps).replace(/'/g, "''")}',
+          '${JSON.stringify(targetProps).replace(/'/g, "''")}'
         )
       `;
 
