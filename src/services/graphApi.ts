@@ -64,11 +64,19 @@ export const fetchGraphData = async (
 
   try {
     console.log('🔗 Fetching graph data from backend API...');
-    const url = new URL(`${API_BASE_URL}/graph`);
-    if (tableName) {
-      url.searchParams.append('tableName', tableName);
+    let url: string;
+    if (API_BASE_URL.startsWith('http')) {
+      // Absolute URL - use URL constructor for query params
+      const urlObj = new URL(`${API_BASE_URL}/graph`);
+      if (tableName) {
+        urlObj.searchParams.append('tableName', tableName);
+      }
+      url = urlObj.toString();
+    } else {
+      // Relative URL - construct manually
+      url = `${API_BASE_URL}/graph${tableName ? `?tableName=${encodeURIComponent(tableName)}` : ''}`;
     }
-    const response = await fetch(url.toString());
+    const response = await fetch(url);
 
     if (!response.ok) {
       throw new Error(`Backend API returned ${response.status}: ${response.statusText}`);
@@ -142,11 +150,19 @@ export const writeToTable = async (
   }
 
   try {
-    const url = new URL(`${API_BASE_URL}/graph`);
-    if (tableName) {
-      url.searchParams.append('tableName', tableName);
+    let url: string;
+    if (API_BASE_URL.startsWith('http')) {
+      // Absolute URL - use URL constructor for query params
+      const urlObj = new URL(`${API_BASE_URL}/graph`);
+      if (tableName) {
+        urlObj.searchParams.append('tableName', tableName);
+      }
+      url = urlObj.toString();
+    } else {
+      // Relative URL - construct manually
+      url = `${API_BASE_URL}/graph${tableName ? `?tableName=${encodeURIComponent(tableName)}` : ''}`;
     }
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
