@@ -5,14 +5,12 @@ import { AddCircleOutline as AddNodeIcon, Link as LinkIcon } from '@mui/icons-ma
 interface NodePaletteProps {
   onStartCreateNode?: () => void;
   onStartCreateEdge: () => void;
-  isEdgeCreateMode: boolean;
   disabled?: boolean;
 }
 
 const NodePalette: React.FC<NodePaletteProps> = ({
   onStartCreateNode,
   onStartCreateEdge,
-  isEdgeCreateMode,
   disabled = false,
 }) => {
   return (
@@ -44,29 +42,21 @@ const NodePalette: React.FC<NodePaletteProps> = ({
       </Typography>
 
       <Tooltip
-        title="Click to enable edge creation mode, then click two nodes to connect them"
+        title="Open a form to create an edge by selecting source and target nodes"
         placement="right"
       >
         <Button
-          variant={isEdgeCreateMode ? 'contained' : 'outlined'}
-          color={isEdgeCreateMode ? 'success' : 'primary'}
+          variant="outlined"
+          color="primary"
           startIcon={<LinkIcon />}
           onClick={onStartCreateEdge}
           disabled={disabled}
           fullWidth
           sx={{ mb: 1 }}
         >
-          {isEdgeCreateMode ? 'Creating Edge...' : 'Create Edge'}
+          Create Edge
         </Button>
       </Tooltip>
-
-      {isEdgeCreateMode && (
-        <Box sx={{ mt: 1, p: 1.5, bgcolor: 'success.light', borderRadius: 1 }}>
-          <Typography variant="caption" color="success.contrastText">
-            Click a source node, then click a target node to create a relationship
-          </Typography>
-        </Box>
-      )}
 
       <Divider sx={{ my: 2 }} />
 
@@ -89,11 +79,7 @@ const NodePalette: React.FC<NodePaletteProps> = ({
             <strong>Create Edge:</strong>
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            1. Click "Create Edge" button
-            <br />
-            2. Click source node
-            <br />
-            3. Click target node
+            Click "Create Edge" and use the autocomplete form to select source and target nodes
           </Typography>
         </Box>
 

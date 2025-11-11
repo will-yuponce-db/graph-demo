@@ -441,10 +441,10 @@ async function writeToDatabricks(nodes, edges, userAccessToken, tableName) {
           node_end_properties
         ) VALUES (
           '${sourceNode.id}',
-          '${sourceNode.label}',
+          '${sourceNode.type}',
           '${edge.relationshipType}',
           '${targetNode.id}',
-          '${targetNode.label}',
+          '${targetNode.type}',
           '${JSON.stringify(sourceNode.properties).replace(/'/g, "''")}',
           '${JSON.stringify(targetNode.properties).replace(/'/g, "''")}'
         )
@@ -974,6 +974,256 @@ app.post('/api/graph/seed', async (req, res) => {
         timestamp: new Date().toISOString(),
         duration: `${totalDuration}ms`,
       },
+    });
+  }
+});
+
+/**
+ * DELETE /api/graph/node/:nodeId
+ * Delete a node and its connected edges from the database
+ * Tries Databricks first, falls back to SQLite
+ */
+app.delete('/api/graph/node/:nodeId', async (req, res) => {
+  const { nodeId } = req.params;
+  const startTime = Date.now();
+  let target = 'SQLite';
+  let deleteError = null;
+
+  // Extract user's access token from Databricks Apps header
+  const userAccessToken = req.headers['x-forwarded-access-token'];
+
+  // Extract table name from query parameter
+  let tableName;
+  try {
+    tableName = validateTableName(req.query.tableName);
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  try {
+    // Try deleting from Databricks only if user token is available
+    if (userAccessToken) {
+      try {
+        let connection = await createDatabricksConnection(userAccessToken);
+        const session = await connection.openSession();
+
+        // Delete edges connected to this node first
+        const deleteEdgesQuery = `
+          DELETE FROM ${tableName}
+          WHERE node_start_id = '${nodeId}' OR node_end_id = '${nodeId}'
+        `;
+        const deleteEdgesOp = await session.executeStatement(deleteEdgesQuery, {
+          runAsync: false,
+        });
+        await deleteEdgesOp.close();
+
+        await session.close();
+        await connection.close();
+        target = 'Databricks (user auth)';
+      } catch (error) {
+        deleteError = error.message;
+        logger.warn({
+          type: 'api_fallback',
+          endpoint: 'DELETE /api/graph/node',
+          reason: 'databricks_failed',
+          error: sanitizeErrorForClient(error),
+          tableName,
+        });
+      }
+    }
+
+    // Also delete from SQLite (either as fallback or as primary)
+    // Delete connected edges first
+    const deleteEdgesStmt = db.prepare('DELETE FROM edges WHERE source = ? OR target = ?');
+    deleteEdgesStmt.run(nodeId, nodeId);
+
+    // Delete the node
+    const deleteNodeStmt = db.prepare('DELETE FROM nodes WHERE id = ?');
+    const result = deleteNodeStmt.run(nodeId);
+
+    if (!userAccessToken) {
+      target = 'SQLite';
+    } else if (deleteError) {
+      target = 'SQLite (fallback)';
+    }
+
+    const totalDuration = Date.now() - startTime;
+    const sanitizedError = sanitizeErrorForClient(deleteError);
+    const message = deleteError
+      ? `Deleted node ${nodeId} from ${target} (Databricks unavailable: ${sanitizedError})`
+      : `Deleted node ${nodeId} from ${target}`;
+
+    logger.info({
+      type: 'api_success',
+      method: 'DELETE',
+      endpoint: '/api/graph/node',
+      target,
+      nodeId,
+      duration: totalDuration,
+    });
+
+    res.json({
+      success: true,
+      message,
+      target,
+      nodeId,
+      deleted: result.changes > 0,
+      userAuth: !!userAccessToken,
+      databricksError: sanitizedError,
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
+    });
+  } catch (error) {
+    const totalDuration = Date.now() - startTime;
+    logger.error({
+      type: 'api_error',
+      method: 'DELETE',
+      endpoint: '/api/graph/node',
+      error: error.message,
+      duration: totalDuration,
+    });
+
+    res.status(500).json({
+      success: false,
+      message: `Failed to delete node: ${sanitizeErrorForClient(error)}`,
+      userAuth: !!userAccessToken,
+      databricksError: sanitizeErrorForClient(deleteError || error),
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
+    });
+  }
+});
+
+/**
+ * DELETE /api/graph/edge/:edgeId
+ * Delete an edge from the database
+ * Tries Databricks first, falls back to SQLite
+ */
+app.delete('/api/graph/edge/:edgeId', async (req, res) => {
+  const { edgeId } = req.params;
+  const startTime = Date.now();
+  let target = 'SQLite';
+  let deleteError = null;
+
+  // Extract user's access token from Databricks Apps header
+  const userAccessToken = req.headers['x-forwarded-access-token'];
+
+  // Extract table name from query parameter
+  let tableName;
+  try {
+    tableName = validateTableName(req.query.tableName);
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  try {
+    // Get edge details from SQLite first to identify it in Databricks
+    const edge = db.prepare('SELECT * FROM edges WHERE id = ?').get(edgeId);
+
+    if (!edge) {
+      return res.status(404).json({
+        success: false,
+        message: `Edge ${edgeId} not found`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Try deleting from Databricks only if user token is available
+    if (userAccessToken) {
+      try {
+        let connection = await createDatabricksConnection(userAccessToken);
+        const session = await connection.openSession();
+
+        // Delete edge from Databricks
+        // Note: Databricks edge table doesn't have an 'id' column,
+        // so we need to match by node_start_id, node_end_id, and relationship
+        const deleteEdgeQuery = `
+          DELETE FROM ${tableName}
+          WHERE node_start_id = '${edge.source}'
+            AND node_end_id = '${edge.target}'
+            AND relationship = '${edge.relationshipType}'
+        `;
+        const deleteEdgeOp = await session.executeStatement(deleteEdgeQuery, {
+          runAsync: false,
+        });
+        await deleteEdgeOp.close();
+
+        await session.close();
+        await connection.close();
+        target = 'Databricks (user auth)';
+      } catch (error) {
+        deleteError = error.message;
+        logger.warn({
+          type: 'api_fallback',
+          endpoint: 'DELETE /api/graph/edge',
+          reason: 'databricks_failed',
+          error: sanitizeErrorForClient(error),
+          tableName,
+        });
+      }
+    }
+
+    // Also delete from SQLite (either as fallback or as primary)
+    const deleteEdgeStmt = db.prepare('DELETE FROM edges WHERE id = ?');
+    const result = deleteEdgeStmt.run(edgeId);
+
+    if (!userAccessToken) {
+      target = 'SQLite';
+    } else if (deleteError) {
+      target = 'SQLite (fallback)';
+    }
+
+    const totalDuration = Date.now() - startTime;
+    const sanitizedError = sanitizeErrorForClient(deleteError);
+    const message = deleteError
+      ? `Deleted edge ${edgeId} from ${target} (Databricks unavailable: ${sanitizedError})`
+      : `Deleted edge ${edgeId} from ${target}`;
+
+    logger.info({
+      type: 'api_success',
+      method: 'DELETE',
+      endpoint: '/api/graph/edge',
+      target,
+      edgeId,
+      duration: totalDuration,
+    });
+
+    res.json({
+      success: true,
+      message,
+      target,
+      edgeId,
+      deleted: result.changes > 0,
+      userAuth: !!userAccessToken,
+      databricksError: sanitizedError,
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
+    });
+  } catch (error) {
+    const totalDuration = Date.now() - startTime;
+    logger.error({
+      type: 'api_error',
+      method: 'DELETE',
+      endpoint: '/api/graph/edge',
+      error: error.message,
+      duration: totalDuration,
+    });
+
+    res.status(500).json({
+      success: false,
+      message: `Failed to delete edge: ${sanitizeErrorForClient(error)}`,
+      userAuth: !!userAccessToken,
+      databricksError: sanitizeErrorForClient(deleteError || error),
+      timestamp: new Date().toISOString(),
+      duration: `${totalDuration}ms`,
     });
   }
 });

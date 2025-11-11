@@ -298,6 +298,108 @@ export const updateItemsStatus = async (
 };
 
 /**
+ * Delete a node from the database
+ */
+export const deleteNode = async (
+  nodeId: string,
+  tableName?: string
+): Promise<{ success: boolean; message: string }> => {
+  if (!USE_BACKEND_API) {
+    // Mock mode - simulate success
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    console.log('📝 Mock delete node (backend disabled):', nodeId);
+    return {
+      success: true,
+      message: `Mock: Would delete node ${nodeId} (backend disabled)`,
+    };
+  }
+
+  try {
+    let url: string;
+    if (API_BASE_URL.startsWith('http')) {
+      const urlObj = new URL(`${API_BASE_URL}/graph/node/${encodeURIComponent(nodeId)}`);
+      if (tableName) {
+        urlObj.searchParams.append('tableName', tableName);
+      }
+      url = urlObj.toString();
+    } else {
+      url = `${API_BASE_URL}/graph/node/${encodeURIComponent(nodeId)}${tableName ? `?tableName=${encodeURIComponent(tableName)}` : ''}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend API returned ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return {
+      success: result.success,
+      message: result.message,
+    };
+  } catch (error) {
+    console.error('Error deleting node from backend API:', error);
+    return {
+      success: false,
+      message: `Failed to delete node: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
+  }
+};
+
+/**
+ * Delete an edge from the database
+ */
+export const deleteEdge = async (
+  edgeId: string,
+  tableName?: string
+): Promise<{ success: boolean; message: string }> => {
+  if (!USE_BACKEND_API) {
+    // Mock mode - simulate success
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    console.log('📝 Mock delete edge (backend disabled):', edgeId);
+    return {
+      success: true,
+      message: `Mock: Would delete edge ${edgeId} (backend disabled)`,
+    };
+  }
+
+  try {
+    let url: string;
+    if (API_BASE_URL.startsWith('http')) {
+      const urlObj = new URL(`${API_BASE_URL}/graph/edge/${encodeURIComponent(edgeId)}`);
+      if (tableName) {
+        urlObj.searchParams.append('tableName', tableName);
+      }
+      url = urlObj.toString();
+    } else {
+      url = `${API_BASE_URL}/graph/edge/${encodeURIComponent(edgeId)}${tableName ? `?tableName=${encodeURIComponent(tableName)}` : ''}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend API returned ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return {
+      success: result.success,
+      message: result.message,
+    };
+  } catch (error) {
+    console.error('Error deleting edge from backend API:', error);
+    return {
+      success: false,
+      message: `Failed to delete edge: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
+  }
+};
+
+/**
  * Utility to prepare write request payload
  */
 export const prepareWriteRequest = (

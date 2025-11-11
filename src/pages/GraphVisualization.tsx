@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -36,8 +36,13 @@ import NodeSearch from '../components/NodeSearch';
 import { NodeForm, EdgeForm } from '../components/NodeEdgeForm';
 import { useGraphEditor } from '../hooks/useGraphEditor';
 import type { GraphData, GraphStats, GraphNode, GraphEdge } from '../types/graph';
-import { writeToTable, fetchGraphData } from '../services/graphApi';
-import { ChangeStatus, getUniqueNodeTypes, getUniqueRelationshipTypes } from '../types/graph';
+import {
+  writeToTable,
+  fetchGraphData,
+  deleteNode as apiDeleteNode,
+  deleteEdge as apiDeleteEdge,
+} from '../services/graphApi';
+import { ChangeStatus } from '../types/graph';
 
 // Helper function to calculate graph stats
 const getGraphStats = (data: GraphData): GraphStats => {
@@ -242,13 +247,13 @@ const GraphVisualizationPage: React.FC = () => {
     setNodeFormInitialData(undefined);
   };
 
-  // Edge creation
+  // Edge creation - open form directly instead of click mode
   const handleStartCreateEdge = () => {
-    if (editor.isEdgeCreateMode) {
-      editor.cancelEdgeCreateMode();
-    } else {
-      editor.startEdgeCreateMode();
-    }
+    setEdgeFormMode('create');
+    setEdgeFormSourceId(undefined);
+    setEdgeFormTargetId(undefined);
+    setEdgeFormInitialData(undefined);
+    setEdgeFormOpen(true);
   };
 
   const handleNodeClickForEdge = (nodeId: string) => {
@@ -285,15 +290,117 @@ const GraphVisualizationPage: React.FC = () => {
     }
   };
 
-  // Delete node from GUI
-  const handleNodeDelete = (nodeId: string) => {
-    editor.deleteNode(nodeId);
-  };
+  // Delete node (both from local state and database if existing)
+  const handleNodeDelete = useCallback(
+    async (nodeId: string) => {
+      const node = editor.graphData.nodes.find((n) => n.id === nodeId);
 
-  // Delete edge from GUI
-  const handleEdgeDelete = (edgeId: string) => {
-    editor.deleteEdge(edgeId);
-  };
+      if (!node) {
+        return;
+      }
+
+      // If it's an existing node (not NEW), delete from database
+      if (node.status === ChangeStatus.EXISTING) {
+        if (
+          !window.confirm(
+            `Are you sure you want to delete "${node.label}" from the database? This action cannot be undone.`
+          )
+        ) {
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const result = await apiDeleteNode(nodeId, tableName);
+          if (result.success) {
+            // Remove from local state
+            editor.deleteNode(nodeId);
+            setSnackbar({
+              open: true,
+              message: result.message,
+              severity: 'success',
+            });
+            // Reload data to ensure consistency
+            await loadGraphData();
+          } else {
+            setSnackbar({
+              open: true,
+              message: result.message,
+              severity: 'error',
+            });
+          }
+        } catch (error) {
+          setSnackbar({
+            open: true,
+            message: error instanceof Error ? error.message : 'Failed to delete node',
+            severity: 'error',
+          });
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // It's a NEW node, just remove from local state
+        editor.deleteNode(nodeId);
+      }
+    },
+    [editor, tableName, loadGraphData]
+  );
+
+  // Delete edge (both from local state and database if existing)
+  const handleEdgeDelete = useCallback(
+    async (edgeId: string) => {
+      const edge = editor.graphData.edges.find((e) => e.id === edgeId);
+
+      if (!edge) {
+        return;
+      }
+
+      // If it's an existing edge (not NEW), delete from database
+      if (edge.status === ChangeStatus.EXISTING) {
+        if (
+          !window.confirm(
+            `Are you sure you want to delete this ${edge.relationshipType} relationship from the database? This action cannot be undone.`
+          )
+        ) {
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const result = await apiDeleteEdge(edgeId, tableName);
+          if (result.success) {
+            // Remove from local state
+            editor.deleteEdge(edgeId);
+            setSnackbar({
+              open: true,
+              message: result.message,
+              severity: 'success',
+            });
+            // Reload data to ensure consistency
+            await loadGraphData();
+          } else {
+            setSnackbar({
+              open: true,
+              message: result.message,
+              severity: 'error',
+            });
+          }
+        } catch (error) {
+          setSnackbar({
+            open: true,
+            message: error instanceof Error ? error.message : 'Failed to delete edge',
+            severity: 'error',
+          });
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // It's a NEW edge, just remove from local state
+        editor.deleteEdge(edgeId);
+      }
+    },
+    [editor, tableName, loadGraphData]
+  );
 
   // Edit existing edge
   const handleEdgeEdit = (edgeId: string) => {
@@ -311,15 +418,15 @@ const GraphVisualizationPage: React.FC = () => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (editor.selectedNodeId) {
           const node = editor.graphData.nodes.find((n) => n.id === editor.selectedNodeId);
-          // Only allow deletion of NEW nodes
-          if (node && node.status === ChangeStatus.NEW) {
-            editor.deleteNode(editor.selectedNodeId);
+          // Allow deletion of any node (NEW nodes delete locally, EXISTING nodes delete from DB)
+          if (node) {
+            handleNodeDelete(editor.selectedNodeId);
           }
         } else if (editor.selectedEdgeId) {
           const edge = editor.graphData.edges.find((e) => e.id === editor.selectedEdgeId);
-          // Only allow deletion of NEW edges
-          if (edge && edge.status === ChangeStatus.NEW) {
-            editor.deleteEdge(editor.selectedEdgeId);
+          // Allow deletion of any edge (NEW edges delete locally, EXISTING edges delete from DB)
+          if (edge) {
+            handleEdgeDelete(editor.selectedEdgeId);
           }
         }
       }
@@ -561,7 +668,6 @@ const GraphVisualizationPage: React.FC = () => {
             <NodePalette
               onStartCreateNode={handleStartCreateNode}
               onStartCreateEdge={handleStartCreateEdge}
-              isEdgeCreateMode={editor.isEdgeCreateMode}
               disabled={isLoadingData}
             />
           </Grid>
@@ -727,7 +833,6 @@ const GraphVisualizationPage: React.FC = () => {
         onDelete={handleNodeDelete}
         initialData={nodeFormInitialData}
         mode={nodeFormMode}
-        availableNodeTypes={getUniqueNodeTypes(editor.graphData)}
       />
 
       {/* Edge Form Dialog */}
@@ -745,7 +850,7 @@ const GraphVisualizationPage: React.FC = () => {
         sourceNodeId={edgeFormSourceId}
         targetNodeId={edgeFormTargetId}
         mode={edgeFormMode}
-        availableRelationshipTypes={getUniqueRelationshipTypes(editor.graphData)}
+        availableNodes={editor.graphData.nodes}
       />
 
       {/* Confirmation Dialog */}

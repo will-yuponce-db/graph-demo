@@ -15,6 +15,12 @@ import {
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import type { GraphNode, GraphEdge, NodeProperties, EdgeProperties } from '../types/graph';
 
+interface NodeOption {
+  id: string;
+  label: string;
+  type: string;
+}
+
 interface NodeFormProps {
   open: boolean;
   onClose: () => void;
@@ -22,7 +28,6 @@ interface NodeFormProps {
   onDelete?: (nodeId: string) => void;
   initialData?: GraphNode;
   mode: 'create' | 'edit';
-  availableNodeTypes?: string[]; // Available node types from existing data
 }
 
 interface EdgeFormProps {
@@ -34,7 +39,7 @@ interface EdgeFormProps {
   sourceNodeId?: string;
   targetNodeId?: string;
   mode: 'create' | 'edit';
-  availableRelationshipTypes?: string[]; // Available relationship types from existing data
+  availableNodes?: GraphNode[]; // Available nodes for autocomplete
 }
 
 /**
@@ -47,7 +52,6 @@ export const NodeForm: React.FC<NodeFormProps> = ({
   onDelete,
   initialData,
   mode,
-  availableNodeTypes = [],
 }) => {
   const [nodeId, setNodeId] = useState('');
   const [label, setLabel] = useState('');
@@ -129,7 +133,7 @@ export const NodeForm: React.FC<NodeFormProps> = ({
     }
   };
 
-  const canDelete = mode === 'edit' && initialData?.status === 'new' && onDelete;
+  const canDelete = mode === 'edit' && onDelete;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -155,26 +159,15 @@ export const NodeForm: React.FC<NodeFormProps> = ({
             autoFocus
           />
 
-          <Autocomplete
-            freeSolo
-            options={availableNodeTypes}
+          <TextField
+            label="Type"
             value={type}
-            onChange={(_event, newValue) => {
-              setType(newValue || '');
-            }}
-            onInputChange={(_event, newInputValue) => {
-              setType(newInputValue);
-            }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Type"
-                placeholder="Enter or select a type (e.g., Person, Company)"
-                size="small"
-                required
-                helperText="Type any value or select from existing types"
-              />
-            )}
+            onChange={(e) => setType(e.target.value)}
+            placeholder="Enter a type (e.g., Person, Company)"
+            size="small"
+            required
+            fullWidth
+            helperText="Enter any value for the node type"
           />
 
           <Box>
@@ -241,13 +234,20 @@ export const EdgeForm: React.FC<EdgeFormProps> = ({
   sourceNodeId,
   targetNodeId,
   mode,
-  availableRelationshipTypes = [],
+  availableNodes = [],
 }) => {
   const [edgeId, setEdgeId] = useState('');
   const [source, setSource] = useState('');
   const [target, setTarget] = useState('');
   const [relationshipType, setRelationshipType] = useState<string>('');
   const [properties, setProperties] = useState<Array<{ key: string; value: string }>>([]);
+
+  // Convert nodes to options for autocomplete
+  const nodeOptions: NodeOption[] = availableNodes.map((node) => ({
+    id: node.id,
+    label: node.label,
+    type: node.type,
+  }));
 
   useEffect(() => {
     if (initialData) {
@@ -331,7 +331,7 @@ export const EdgeForm: React.FC<EdgeFormProps> = ({
     }
   };
 
-  const canDelete = mode === 'edit' && initialData?.status === 'new' && onDelete;
+  const canDelete = mode === 'edit' && onDelete;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -349,46 +349,87 @@ export const EdgeForm: React.FC<EdgeFormProps> = ({
             size="small"
           />
 
-          <TextField
-            label="Source Node ID"
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            required
-            disabled={mode === 'create'}
-            fullWidth
-            size="small"
-          />
-
-          <TextField
-            label="Target Node ID"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            required
-            disabled={mode === 'create'}
-            fullWidth
-            size="small"
-          />
-
           <Autocomplete
-            freeSolo
-            options={availableRelationshipTypes}
-            value={relationshipType}
+            options={nodeOptions}
+            getOptionLabel={(option) => `${option.label} (${option.type})`}
+            value={nodeOptions.find((n) => n.id === source) || null}
             onChange={(_event, newValue) => {
-              setRelationshipType(newValue || '');
+              setSource(newValue?.id || '');
             }}
-            onInputChange={(_event, newInputValue) => {
-              setRelationshipType(newInputValue);
-            }}
+            disabled={mode === 'edit' || !!sourceNodeId}
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Relationship Type"
-                placeholder="Enter or select a relationship type (e.g., WORKS_AT)"
-                size="small"
+                label="Source Node"
                 required
-                helperText="Type any value or select from existing types"
+                size="small"
+                placeholder="Select a source node"
+                helperText={
+                  mode === 'edit'
+                    ? 'Cannot change source for existing edges'
+                    : 'Select the starting node'
+                }
               />
             )}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>
+                <Box>
+                  <Typography variant="body2">
+                    <strong>{option.label}</strong>
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Type: {option.type} • ID: {option.id}
+                  </Typography>
+                </Box>
+              </li>
+            )}
+          />
+
+          <Autocomplete
+            options={nodeOptions}
+            getOptionLabel={(option) => `${option.label} (${option.type})`}
+            value={nodeOptions.find((n) => n.id === target) || null}
+            onChange={(_event, newValue) => {
+              setTarget(newValue?.id || '');
+            }}
+            disabled={mode === 'edit' || !!targetNodeId}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Target Node"
+                required
+                size="small"
+                placeholder="Select a target node"
+                helperText={
+                  mode === 'edit'
+                    ? 'Cannot change target for existing edges'
+                    : 'Select the ending node'
+                }
+              />
+            )}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>
+                <Box>
+                  <Typography variant="body2">
+                    <strong>{option.label}</strong>
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Type: {option.type} • ID: {option.id}
+                  </Typography>
+                </Box>
+              </li>
+            )}
+          />
+
+          <TextField
+            label="Relationship Type"
+            value={relationshipType}
+            onChange={(e) => setRelationshipType(e.target.value)}
+            placeholder="Enter a relationship type (e.g., WORKS_AT)"
+            size="small"
+            required
+            fullWidth
+            helperText="Enter any value for the relationship type"
           />
 
           <Box>
