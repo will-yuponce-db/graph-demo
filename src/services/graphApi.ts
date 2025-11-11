@@ -129,6 +129,15 @@ export const writeToTable = async (
     };
   }
 
+  // For Databricks edge table, we need ALL nodes referenced by new edges
+  // (not just new nodes, as an edge might connect a new node to an existing one)
+  const referencedNodeIds = new Set<string>();
+  newEdges.forEach((edge) => {
+    referencedNodeIds.add(edge.source);
+    referencedNodeIds.add(edge.target);
+  });
+  const nodesForEdges = nodes.filter((n) => referencedNodeIds.has(n.id));
+
   if (!USE_BACKEND_API) {
     // Mock mode - simulate success
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -168,7 +177,7 @@ export const writeToTable = async (
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        nodes: newNodes,
+        nodes: nodesForEdges, // Send all nodes referenced by edges (not just new nodes)
         edges: newEdges,
       }),
     });

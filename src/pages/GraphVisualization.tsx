@@ -355,12 +355,9 @@ const GraphVisualizationPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // Only send NEW nodes and edges to backend
-      const result = await writeToTable(
-        editor.userCreatedNodes,
-        editor.userCreatedEdges,
-        tableName
-      );
+      // Pass ALL nodes and edges - writeToTable will filter for NEW items
+      // and include any existing nodes referenced by new edges (needed for Databricks edge table)
+      const result = await writeToTable(editor.graphData.nodes, editor.graphData.edges, tableName);
 
       if (result.success) {
         // Get IDs of items being saved
