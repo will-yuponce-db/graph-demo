@@ -1,10 +1,32 @@
-node_modules
-dist
-build
-coverage
-.vite
-*.lock
-package-lock.json
-pnpm-lock.yaml
-yarn.lock
+# Dependencies
+node_modules/
+backend/node_modules/
 
+# Build outputs
+dist/
+build/
+coverage/
+*.log
+
+# Database files
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated files
+package-lock.json
+backend/package-lock.json

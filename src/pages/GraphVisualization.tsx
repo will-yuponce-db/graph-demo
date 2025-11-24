@@ -69,6 +69,7 @@ const GraphVisualizationPage: React.FC = () => {
 
   // Ref for graph visualization component
   const graphVisualizationRef = useRef<GraphVisualizationRef>(null);
+  const graphBoxRef = useRef<HTMLDivElement>(null);
 
   const [showProposed, setShowProposed] = useState(true);
   const [selectedNodeTypes, setSelectedNodeTypes] = useState<string[]>([]);
@@ -83,12 +84,6 @@ const GraphVisualizationPage: React.FC = () => {
   const [initialData, setInitialData] = useState<GraphData>({ nodes: [], edges: [] });
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
-  const [isUsingMockData, setIsUsingMockData] = useState(false);
-  const [dbMetadata, setDbMetadata] = useState<{
-    source?: string;
-    databricksEnabled?: boolean;
-    databricksError?: string | null;
-  }>({});
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -119,7 +114,6 @@ const GraphVisualizationPage: React.FC = () => {
   const [edgeFormSourceId, setEdgeFormSourceId] = useState<string | undefined>();
   const [edgeFormTargetId, setEdgeFormTargetId] = useState<string | undefined>();
 
-  const graphContainerRef = useRef<HTMLDivElement>(null);
   const [graphDimensions, setGraphDimensions] = useState({ width: 800, height: 600 });
 
   // Use the graph editor hook
@@ -152,7 +146,7 @@ const GraphVisualizationPage: React.FC = () => {
     setIsEditingTableName(false);
   };
 
-  const loadGraphData = async () => {
+  const loadGraphData = useCallback(async () => {
     setIsLoadingData(true);
     setDataError(null);
 
@@ -167,11 +161,7 @@ const GraphVisualizationPage: React.FC = () => {
       // Log metadata from backend (includes source database and any errors)
       if (response.metadata) {
         console.log('📊 Database Metadata:', response.metadata);
-        setDbMetadata(response.metadata);
       }
-
-      // Determine if we're using mock data
-      setIsUsingMockData(!useBackend || response.metadata?.source === 'Mock Data');
 
       // Build message with metadata
       let message = `Loaded ${response.nodes.length} nodes and ${response.edges.length} edges`;
@@ -198,22 +188,27 @@ const GraphVisualizationPage: React.FC = () => {
     } finally {
       setIsLoadingData(false);
     }
-  };
+  }, [tableName, editor]);
 
   // Calculate graph dimensions based on container size
   useEffect(() => {
     const updateDimensions = () => {
-      if (graphContainerRef.current) {
-        const width = graphContainerRef.current.clientWidth;
-        const height = graphContainerRef.current.clientHeight;
+      if (graphBoxRef.current) {
+        const width = graphBoxRef.current.clientWidth;
+        const height = graphBoxRef.current.clientHeight;
         setGraphDimensions({ width, height });
       }
     };
 
+    // Use a timeout to ensure the DOM has rendered
+    const timeout = setTimeout(updateDimensions, 100);
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, []);
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('resize', updateDimensions);
+    };
+  }, [isFullscreen]);
 
   const handleResetView = () => {
     setShowProposed(true);
@@ -454,7 +449,7 @@ const GraphVisualizationPage: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editor, isFullscreen]);
+  }, [editor, isFullscreen, handleNodeDelete, handleEdgeDelete]);
 
   // Save to backend
   const handleWriteToTable = async () => {
@@ -506,11 +501,12 @@ const GraphVisualizationPage: React.FC = () => {
   return (
     <Container
       maxWidth={false}
+      disableGutters
       sx={{
         minHeight: '100vh',
         height: isFullscreen ? '100vh' : undefined,
         py: isFullscreen ? 0 : 3,
-        px: isFullscreen ? 0 : undefined,
+        px: isFullscreen ? 0 : 3,
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -548,47 +544,6 @@ const GraphVisualizationPage: React.FC = () => {
               </Button>
             </Box>
           </Box>
-
-          {/* Connection Info Banner */}
-          <Paper
-            sx={{
-              p: 2,
-              bgcolor: dataError ? 'error.main' : isUsingMockData ? 'warning.main' : 'info.main',
-              color: dataError
-                ? 'error.contrastText'
-                : isUsingMockData
-                  ? 'warning.contrastText'
-                  : 'info.contrastText',
-            }}
-          >
-            <Typography variant="body2">
-              {dataError ? (
-                <>
-                  <strong>Connection Error:</strong> {dataError}
-                </>
-              ) : isUsingMockData ? (
-                <>
-                  <strong>Demo Mode:</strong> Using SQLite database. Changes will be saved locally.
-                  <br />
-                  To sync with Databricks, configure DATABRICKS_CLIENT_ID and
-                  DATABRICKS_CLIENT_SECRET in backend/.env
-                </>
-              ) : (
-                <>
-                  <strong>Connected:</strong> Backend API →{' '}
-                  {dbMetadata.databricksEnabled
-                    ? 'Databricks (with SQLite fallback)'
-                    : 'SQLite only'}
-                  {dbMetadata.databricksError && (
-                    <>
-                      <br />
-                      <small>⚠️ Databricks unavailable: {dbMetadata.databricksError}</small>
-                    </>
-                  )}
-                </>
-              )}
-            </Typography>
-          </Paper>
 
           {/* Table Configuration */}
           <Paper sx={{ p: 2, mt: 2 }}>
@@ -682,7 +637,6 @@ const GraphVisualizationPage: React.FC = () => {
           }}
         >
           <Paper
-            ref={graphContainerRef}
             elevation={isFullscreen ? 0 : 1}
             sx={{
               height: '100%',
@@ -732,7 +686,7 @@ const GraphVisualizationPage: React.FC = () => {
                 />
               </Box>
             )}
-            <Box sx={{ flexGrow: 1, position: 'relative', minHeight: 0 }}>
+            <Box ref={graphBoxRef} sx={{ flexGrow: 1, position: 'relative', minHeight: 0 }}>
               {isLoadingData ? (
                 <Box display="flex" justifyContent="center" alignItems="center" height="100%">
                   <Box textAlign="center">
@@ -773,8 +727,8 @@ const GraphVisualizationPage: React.FC = () => {
                   showEdgeLabels={showEdgeLabels}
                   edgeLength={edgeLength}
                   nodeSize={nodeSize}
-                  width={isFullscreen ? graphDimensions.width : graphDimensions.width - 32}
-                  height={isFullscreen ? graphDimensions.height - 60 : graphDimensions.height - 140}
+                  width={graphDimensions.width}
+                  height={graphDimensions.height}
                   onNodeClick={(nodeId) => {
                     if (editor.isEdgeCreateMode) {
                       handleNodeClickForEdge(nodeId);
