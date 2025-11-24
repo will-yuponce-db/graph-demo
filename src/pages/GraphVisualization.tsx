@@ -512,36 +512,137 @@ const GraphVisualizationPage: React.FC = () => {
       }}
     >
       {!isFullscreen && (
-        <Box sx={{ mb: 3, flexShrink: 0 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-            <Box>
-              <Typography variant="h4" gutterBottom>
-                Graph Editor
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Create and edit graph nodes and relationships, then save to database
-              </Typography>
-            </Box>
-            <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={isLoadingData ? <CircularProgress size={20} /> : <RefreshIcon />}
-                onClick={loadGraphData}
-                disabled={isLoadingData}
-              >
-                Refresh
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                size="large"
-                startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                onClick={() => setConfirmDialogOpen(true)}
-                disabled={!hasProposedChanges || loading || isLoadingData}
-              >
-                Save to Database ({newNodesCount} nodes, {newEdgesCount} edges)
-              </Button>
+        <Box
+          sx={{
+            mb: 3,
+            flexShrink: 0,
+            animation: `${fadeIn} 0.6s ease-out`,
+          }}
+        >
+          <Box
+            sx={{
+              background: gradients.primary,
+              borderRadius: 4,
+              p: 3,
+              mb: 2,
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 8px 32px rgba(0, 102, 255, 0.2)',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(10px)',
+                zIndex: 0,
+              },
+            }}
+          >
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="flex-start"
+              sx={{ position: 'relative', zIndex: 1 }}
+            >
+              <Box>
+                <Typography
+                  variant="h4"
+                  gutterBottom
+                  sx={{
+                    color: 'white',
+                    fontWeight: 700,
+                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                  }}
+                >
+                  Graph Editor
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.9)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  {dbMetadata.databricksEnabled ? (
+                    <>
+                      <CloudDoneIcon fontSize="small" />
+                      Connected to {dbMetadata.source || 'Database'}
+                    </>
+                  ) : isUsingMockData ? (
+                    <>
+                      <DnsIcon fontSize="small" />
+                      Using Mock Data
+                    </>
+                  ) : (
+                    <>
+                      <CloudIcon fontSize="small" />
+                      Create and edit graph nodes and relationships
+                    </>
+                  )}
+                </Typography>
+              </Box>
+              <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+                <Button
+                  variant="outlined"
+                  startIcon={
+                    isLoadingData ? (
+                      <CircularProgress size={20} sx={{ color: 'white' }} />
+                    ) : (
+                      <RefreshIcon />
+                    )
+                  }
+                  onClick={loadGraphData}
+                  disabled={isLoadingData}
+                  sx={{
+                    color: 'white',
+                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    backdropFilter: 'blur(10px)',
+                    '&:hover': {
+                      borderColor: 'white',
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      transform: 'translateY(-2px)',
+                    },
+                    '&:disabled': {
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
+                  onClick={() => setConfirmDialogOpen(true)}
+                  disabled={!hasProposedChanges || loading || isLoadingData}
+                  sx={{
+                    background: 'white',
+                    color: vibrantColors.electricBlue,
+                    fontWeight: 700,
+                    px: 3,
+                    boxShadow: '0 4px 16px rgba(255, 255, 255, 0.3)',
+                    animation: hasProposedChanges ? `${pulse} 2s ease-in-out infinite` : 'none',
+                    '&:hover': {
+                      background: 'white',
+                      boxShadow: '0 8px 24px rgba(255, 255, 255, 0.5)',
+                      transform: 'translateY(-2px) scale(1.02)',
+                    },
+                    '&:disabled': {
+                      background: 'rgba(255, 255, 255, 0.5)',
+                      color: 'rgba(0, 102, 255, 0.5)',
+                    },
+                  }}
+                >
+                  Save to Database ({newNodesCount} nodes, {newEdgesCount} edges)
+                </Button>
+              </Box>
             </Box>
           </Box>
 
