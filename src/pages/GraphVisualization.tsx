@@ -647,9 +647,35 @@ const GraphVisualizationPage: React.FC = () => {
           </Box>
 
           {/* Table Configuration */}
-          <Paper sx={{ p: 2, mt: 2 }}>
+          <Paper
+            sx={{
+              p: 2.5,
+              position: 'relative',
+              overflow: 'hidden',
+              borderLeft: `4px solid ${vibrantColors.vibrantPurple}`,
+              background: (theme) =>
+                theme.palette.mode === 'dark'
+                  ? 'linear-gradient(135deg, rgba(192, 38, 211, 0.05) 0%, rgba(236, 72, 153, 0.05) 100%)'
+                  : 'linear-gradient(135deg, rgba(192, 38, 211, 0.02) 0%, rgba(236, 72, 153, 0.02) 100%)',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                borderLeftWidth: '6px',
+                boxShadow: `0 4px 20px ${vibrantColors.vibrantPurple}20`,
+              },
+            }}
+          >
             <Box display="flex" alignItems="center" gap={2}>
-              <Typography variant="body2" fontWeight="bold" sx={{ minWidth: '120px' }}>
+              <Typography
+                variant="body2"
+                fontWeight="bold"
+                sx={{
+                  minWidth: '120px',
+                  background: gradients.secondary,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
                 Databricks Table:
               </Typography>
               {isEditingTableName ? (
@@ -674,19 +700,43 @@ const GraphVisualizationPage: React.FC = () => {
                       color="primary"
                       onClick={handleSaveTableName}
                       disabled={!tableNameInput.trim()}
+                      sx={{
+                        background: gradients.success,
+                        color: 'white',
+                        '&:hover': {
+                          background: gradients.success,
+                          transform: 'scale(1.1)',
+                        },
+                      }}
                     >
                       <CheckIcon />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Cancel">
-                    <IconButton color="default" onClick={handleCancelEditTableName}>
+                    <IconButton
+                      onClick={handleCancelEditTableName}
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          color: vibrantColors.strikingRed,
+                        },
+                      }}
+                    >
                       <CloseIcon />
                     </IconButton>
                   </Tooltip>
                 </>
               ) : (
                 <>
-                  <Typography variant="body2" sx={{ flexGrow: 1, fontFamily: 'monospace' }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      flexGrow: 1,
+                      fontFamily: 'monospace',
+                      fontWeight: 600,
+                      color: 'text.primary',
+                    }}
+                  >
                     {tableName}
                   </Typography>
                   <Tooltip title="Edit table name">
@@ -694,6 +744,12 @@ const GraphVisualizationPage: React.FC = () => {
                       size="small"
                       onClick={() => setIsEditingTableName(true)}
                       disabled={isLoadingData}
+                      sx={{
+                        '&:hover': {
+                          background: gradients.secondary,
+                          color: 'white',
+                        },
+                      }}
                     >
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -701,8 +757,16 @@ const GraphVisualizationPage: React.FC = () => {
                 </>
               )}
             </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Specify the Databricks table to read from and write to. Format:
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                mt: 1.5,
+                display: 'block',
+                fontStyle: 'italic',
+              }}
+            >
+              💡 Specify the Databricks table to read from and write to. Format:
               catalog.schema.table_name
             </Typography>
           </Paper>

@@ -11,6 +11,7 @@ import {
   Stack,
   Slider,
   useTheme,
+  keyframes,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -24,6 +25,18 @@ import {
   getColorForType,
   type GraphData,
 } from '../types/graph';
+import { gradients, vibrantColors } from '../theme/theme';
+
+// Animation keyframes
+const slideIn = keyframes`
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+`;
+
+const countUp = keyframes`
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+`;
 
 interface GraphControlsProps {
   showProposed: boolean;
@@ -118,96 +131,316 @@ const GraphControls: React.FC<GraphControlsProps> = ({
   };
 
   return (
-    <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Paper
+      sx={{
+        p: 2.5,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: (theme) =>
+          theme.palette.mode === 'dark'
+            ? 'linear-gradient(180deg, rgba(30, 41, 59, 1) 0%, rgba(15, 23, 42, 0.95) 100%)'
+            : 'linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 1) 100%)',
+        animation: `${slideIn} 0.4s ease-out`,
+      }}
+    >
       {/* Graph Statistics */}
-      <Typography variant="h6" gutterBottom>
+      <Typography
+        variant="h6"
+        gutterBottom
+        sx={{
+          background: gradients.primary,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          fontWeight: 700,
+          mb: 2,
+        }}
+      >
         Graph Statistics
       </Typography>
-      <Stack spacing={1} sx={{ mb: 3 }}>
-        <Box display="flex" justifyContent="space-between">
-          <Typography variant="body2">Total Nodes:</Typography>
-          <Chip label={stats.totalNodes} size="small" color="primary" />
+      <Stack spacing={1.5} sx={{ mb: 3 }}>
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            background: gradients.primary,
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: `0 4px 12px ${vibrantColors.electricBlue}30`,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateX(4px)',
+              boxShadow: `0 6px 16px ${vibrantColors.electricBlue}40`,
+            },
+          }}
+        >
+          <Typography variant="body2" fontWeight="bold">
+            Total Nodes:
+          </Typography>
+          <Chip
+            label={stats.totalNodes}
+            size="small"
+            sx={{
+              background: 'white',
+              color: vibrantColors.electricBlue,
+              fontWeight: 700,
+              animation: `${countUp} 0.5s ease-out`,
+            }}
+          />
         </Box>
-        <Box display="flex" justifyContent="space-between">
-          <Typography variant="body2">Total Edges:</Typography>
-          <Chip label={stats.totalEdges} size="small" color="primary" />
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            background: gradients.secondary,
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: `0 4px 12px ${vibrantColors.vibrantPurple}30`,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateX(4px)',
+              boxShadow: `0 6px 16px ${vibrantColors.vibrantPurple}40`,
+            },
+          }}
+        >
+          <Typography variant="body2" fontWeight="bold">
+            Total Edges:
+          </Typography>
+          <Chip
+            label={stats.totalEdges}
+            size="small"
+            sx={{
+              background: 'white',
+              color: vibrantColors.vibrantPurple,
+              fontWeight: 700,
+              animation: `${countUp} 0.5s ease-out 0.1s backwards`,
+            }}
+          />
         </Box>
-        <Box display="flex" justifyContent="space-between">
-          <Typography variant="body2" color="success.main">
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            background: gradients.success,
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: `0 4px 12px ${vibrantColors.boldGreen}30`,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateX(4px)',
+              boxShadow: `0 6px 16px ${vibrantColors.boldGreen}40`,
+            },
+          }}
+        >
+          <Typography variant="body2" fontWeight="bold">
             Proposed Nodes:
           </Typography>
-          <Chip label={stats.newNodes} size="small" color="success" />
+          <Chip
+            label={stats.newNodes}
+            size="small"
+            sx={{
+              background: 'white',
+              color: vibrantColors.boldGreen,
+              fontWeight: 700,
+              animation: `${countUp} 0.5s ease-out 0.2s backwards`,
+            }}
+          />
         </Box>
-        <Box display="flex" justifyContent="space-between">
-          <Typography variant="body2" color="success.main">
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            background: gradients.warning,
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: `0 4px 12px ${vibrantColors.energeticOrange}30`,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateX(4px)',
+              boxShadow: `0 6px 16px ${vibrantColors.energeticOrange}40`,
+            },
+          }}
+        >
+          <Typography variant="body2" fontWeight="bold">
             Proposed Edges:
           </Typography>
-          <Chip label={stats.newEdges} size="small" color="success" />
+          <Chip
+            label={stats.newEdges}
+            size="small"
+            sx={{
+              background: 'white',
+              color: vibrantColors.energeticOrange,
+              fontWeight: 700,
+              animation: `${countUp} 0.5s ease-out 0.3s backwards`,
+            }}
+          />
         </Box>
       </Stack>
 
-      <Divider sx={{ my: 2 }} />
+      <Divider sx={{ my: 2.5, borderColor: 'rgba(0, 102, 255, 0.2)' }} />
 
       {/* Visibility Controls */}
-      <Typography variant="h6" gutterBottom>
+      <Typography
+        variant="h6"
+        gutterBottom
+        sx={{
+          background: gradients.success,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          fontWeight: 700,
+        }}
+      >
         Visibility
       </Typography>
-      <Stack spacing={1}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={showProposed}
-              onChange={(e) => onToggleProposed(e.target.checked)}
-              color="success"
-            />
-          }
-          label={
-            <Box display="flex" alignItems="center" gap={1}>
-              {showProposed ? <VisibilityIcon /> : <VisibilityOffIcon />}
-              <Typography variant="body2">Show Proposed Changes</Typography>
-            </Box>
-          }
-        />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={showNodeLabels}
-              onChange={(e) => onToggleNodeLabels(e.target.checked)}
-              color="primary"
-            />
-          }
-          label={
-            <Box display="flex" alignItems="center" gap={1}>
-              <LabelIcon />
-              <Typography variant="body2">Show Node Labels</Typography>
-            </Box>
-          }
-        />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={showEdgeLabels}
-              onChange={(e) => onToggleEdgeLabels(e.target.checked)}
-              color="primary"
-            />
-          }
-          label={
-            <Box display="flex" alignItems="center" gap={1}>
-              <LabelIcon />
-              <Typography variant="body2">Show Edge Labels</Typography>
-            </Box>
-          }
-        />
+      <Stack spacing={1.5}>
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            background: (theme) =>
+              showProposed ? `${vibrantColors.boldGreen}15` : `${theme.palette.divider}10`,
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showProposed}
+                onChange={(e) => onToggleProposed(e.target.checked)}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: vibrantColors.boldGreen,
+                    '& + .MuiSwitch-track': {
+                      backgroundColor: vibrantColors.boldGreen,
+                    },
+                  },
+                }}
+              />
+            }
+            label={
+              <Box display="flex" alignItems="center" gap={1}>
+                {showProposed ? (
+                  <VisibilityIcon sx={{ color: vibrantColors.boldGreen }} />
+                ) : (
+                  <VisibilityOffIcon />
+                )}
+                <Typography variant="body2" fontWeight={600}>
+                  Show Proposed Changes
+                </Typography>
+              </Box>
+            }
+          />
+        </Box>
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            background: (theme) =>
+              showNodeLabels ? `${vibrantColors.electricBlue}15` : `${theme.palette.divider}10`,
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showNodeLabels}
+                onChange={(e) => onToggleNodeLabels(e.target.checked)}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: vibrantColors.electricBlue,
+                    '& + .MuiSwitch-track': {
+                      backgroundColor: vibrantColors.electricBlue,
+                    },
+                  },
+                }}
+              />
+            }
+            label={
+              <Box display="flex" alignItems="center" gap={1}>
+                <LabelIcon
+                  sx={{ color: showNodeLabels ? vibrantColors.electricBlue : 'text.secondary' }}
+                />
+                <Typography variant="body2" fontWeight={600}>
+                  Show Node Labels
+                </Typography>
+              </Box>
+            }
+          />
+        </Box>
+        <Box
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            background: (theme) =>
+              showEdgeLabels ? `${vibrantColors.vibrantPurple}15` : `${theme.palette.divider}10`,
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showEdgeLabels}
+                onChange={(e) => onToggleEdgeLabels(e.target.checked)}
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: vibrantColors.vibrantPurple,
+                    '& + .MuiSwitch-track': {
+                      backgroundColor: vibrantColors.vibrantPurple,
+                    },
+                  },
+                }}
+              />
+            }
+            label={
+              <Box display="flex" alignItems="center" gap={1}>
+                <LabelIcon
+                  sx={{ color: showEdgeLabels ? vibrantColors.vibrantPurple : 'text.secondary' }}
+                />
+                <Typography variant="body2" fontWeight={600}>
+                  Show Edge Labels
+                </Typography>
+              </Box>
+            }
+          />
+        </Box>
       </Stack>
 
-      <Divider sx={{ my: 2 }} />
+      <Divider sx={{ my: 2.5, borderColor: 'rgba(192, 38, 211, 0.2)' }} />
 
       {/* Edge Length Slider */}
-      <Typography variant="h6" gutterBottom>
+      <Typography
+        variant="h6"
+        gutterBottom
+        sx={{
+          background: gradients.secondary,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          fontWeight: 700,
+        }}
+      >
         Layout
       </Typography>
-      <Box sx={{ px: 1 }}>
-        <Typography variant="body2" gutterBottom>
+      <Box
+        sx={{
+          px: 2,
+          py: 2,
+          borderRadius: 2,
+          background: (theme) =>
+            theme.palette.mode === 'dark' ? 'rgba(192, 38, 211, 0.05)' : 'rgba(192, 38, 211, 0.02)',
+        }}
+      >
+        <Typography variant="body2" gutterBottom fontWeight={600}>
           Edge Length
         </Typography>
         <Slider
@@ -222,10 +455,35 @@ const GraphControls: React.FC<GraphControlsProps> = ({
             { value: 200, label: 'Far' },
           ]}
           valueLabelDisplay="auto"
-          sx={{ mb: 2 }}
+          sx={{
+            mb: 3,
+            '& .MuiSlider-track': {
+              background: gradients.primary,
+              border: 'none',
+              height: 6,
+            },
+            '& .MuiSlider-rail': {
+              height: 6,
+              opacity: 0.3,
+            },
+            '& .MuiSlider-thumb': {
+              width: 20,
+              height: 20,
+              background: 'white',
+              border: `3px solid ${vibrantColors.electricBlue}`,
+              boxShadow: `0 2px 8px ${vibrantColors.electricBlue}40`,
+              '&:hover, &.Mui-focusVisible': {
+                boxShadow: `0 0 0 8px ${vibrantColors.electricBlue}20`,
+              },
+            },
+            '& .MuiSlider-valueLabel': {
+              background: gradients.primary,
+              borderRadius: 2,
+            },
+          }}
         />
 
-        <Typography variant="body2" gutterBottom>
+        <Typography variant="body2" gutterBottom fontWeight={600}>
           Node Size
         </Typography>
         <Slider
@@ -240,7 +498,31 @@ const GraphControls: React.FC<GraphControlsProps> = ({
             { value: 15, label: 'Large' },
           ]}
           valueLabelDisplay="auto"
-          sx={{ mb: 1 }}
+          sx={{
+            '& .MuiSlider-track': {
+              background: gradients.secondary,
+              border: 'none',
+              height: 6,
+            },
+            '& .MuiSlider-rail': {
+              height: 6,
+              opacity: 0.3,
+            },
+            '& .MuiSlider-thumb': {
+              width: 20,
+              height: 20,
+              background: 'white',
+              border: `3px solid ${vibrantColors.vibrantPurple}`,
+              boxShadow: `0 2px 8px ${vibrantColors.vibrantPurple}40`,
+              '&:hover, &.Mui-focusVisible': {
+                boxShadow: `0 0 0 8px ${vibrantColors.vibrantPurple}20`,
+              },
+            },
+            '& .MuiSlider-valueLabel': {
+              background: gradients.secondary,
+              borderRadius: 2,
+            },
+          }}
         />
       </Box>
 
