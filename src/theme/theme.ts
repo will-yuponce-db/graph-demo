@@ -1,21 +1,26 @@
 import { createTheme } from '@mui/material/styles';
 import type { ThemeOptions } from '@mui/material/styles';
 
-// Vibrant color palette
+// Vibrant color palette - ADA compliant with proper contrast ratios
 const vibrantColors = {
-  electricBlue: '#0066FF',
-  skyBlue: '#00D4FF',
-  vibrantPurple: '#C026D3',
-  hotPink: '#EC4899',
-  boldGreen: '#10B981',
-  emerald: '#059669',
-  energeticOrange: '#F59E0B',
-  amber: '#D97706',
-  strikingRed: '#EF4444',
-  crimson: '#DC2626',
+  // Blues - WCAG AA compliant
+  electricBlue: '#0052CC', // Darker for better contrast (was #0066FF)
+  skyBlue: '#0078D4', // Adjusted for readability (was #00D4FF)
+  // Purples/Magentas - WCAG AA compliant
+  vibrantPurple: '#8B2FC9', // Darkened for contrast (was #C026D3)
+  hotPink: '#D13980', // Adjusted for better visibility (was #EC4899)
+  // Greens - WCAG AA compliant, colorblind friendly
+  boldGreen: '#00875A', // Darker, distinguishable from red (was #10B981)
+  emerald: '#006644', // Even darker for text on white (was #059669)
+  // Oranges - WCAG AA compliant
+  energeticOrange: '#D97706', // Already good contrast (was #F59E0B)
+  amber: '#B45309', // Darkened for better readability (was #D97706)
+  // Reds - WCAG AA compliant
+  strikingRed: '#C41E3A', // Better contrast (was #EF4444)
+  crimson: '#B91C1C', // Darkened (was #DC2626)
 };
 
-// Gradient definitions
+// Gradient definitions - using ADA compliant colors
 const gradients = {
   primary: `linear-gradient(135deg, ${vibrantColors.electricBlue} 0%, ${vibrantColors.skyBlue} 100%)`,
   secondary: `linear-gradient(135deg, ${vibrantColors.vibrantPurple} 0%, ${vibrantColors.hotPink} 100%)`,
@@ -23,6 +28,14 @@ const gradients = {
   warning: `linear-gradient(135deg, ${vibrantColors.amber} 0%, ${vibrantColors.energeticOrange} 100%)`,
   error: `linear-gradient(135deg, ${vibrantColors.crimson} 0%, ${vibrantColors.strikingRed} 100%)`,
   rainbow: `linear-gradient(135deg, ${vibrantColors.electricBlue} 0%, ${vibrantColors.vibrantPurple} 50%, ${vibrantColors.hotPink} 100%)`,
+};
+
+// Patterns for colorblind accessibility - using SVG data URIs
+const patterns = {
+  dots: 'data:image/svg+xml,%3Csvg width="20" height="20" xmlns="http://www.w3.org/2000/svg"%3E%3Ccircle cx="10" cy="10" r="2" fill="white" opacity="0.3"/%3E%3C/svg%3E',
+  stripes:
+    'data:image/svg+xml,%3Csvg width="10" height="10" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M-1,1 l2,-2 M0,10 l10,-10 M9,11 l2,-2" stroke="white" stroke-width="1" opacity="0.3"/%3E%3C/svg%3E',
+  grid: 'data:image/svg+xml,%3Csvg width="20" height="20" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M 20 0 L 0 0 0 20" fill="none" stroke="white" stroke-width="1" opacity="0.2"/%3E%3C/svg%3E',
 };
 
 const getDesignTokens = (mode: 'light' | 'dark'): ThemeOptions => ({
@@ -61,8 +74,8 @@ const getDesignTokens = (mode: 'light' | 'dark'): ThemeOptions => ({
             paper: '#FFFFFF',
           },
           text: {
-            primary: '#1E293B',
-            secondary: '#64748B',
+            primary: '#0F172A', // Darker for better contrast (was #1E293B)
+            secondary: '#475569', // Darker for WCAG AA compliance (was #64748B)
           },
         }
       : {
@@ -299,5 +312,5 @@ export const createAppTheme = (mode: 'light' | 'dark') => {
   return createTheme(getDesignTokens(mode));
 };
 
-// Export gradients for use in components
-export { gradients, vibrantColors };
+// Export gradients, colors, and patterns for use in components
+export { gradients, vibrantColors, patterns };

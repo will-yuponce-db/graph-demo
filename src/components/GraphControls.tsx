@@ -11,7 +11,6 @@ import {
   Stack,
   Slider,
   useTheme,
-  keyframes,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -19,6 +18,7 @@ import {
   VisibilityOff as VisibilityOffIcon,
   Label as LabelIcon,
 } from '@mui/icons-material';
+import { keyframes } from '@mui/system';
 import {
   getUniqueNodeTypes,
   getUniqueRelationshipTypes,
@@ -593,27 +593,77 @@ const GraphControls: React.FC<GraphControlsProps> = ({
         </Stack>
       </Box>
 
-      <Divider sx={{ my: 2 }} />
+      <Divider sx={{ my: 2.5, borderColor: 'rgba(245, 158, 11, 0.2)' }} />
 
       {/* Legend - Shows only selected types */}
-      <Typography variant="h6" gutterBottom>
+      <Typography
+        variant="h6"
+        gutterBottom
+        sx={{
+          background: gradients.warning,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          fontWeight: 700,
+        }}
+      >
         Legend
       </Typography>
-      <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
-        <Stack spacing={1} sx={{ mb: 2 }}>
+      <Box
+        sx={{
+          maxHeight: 300,
+          overflowY: 'auto',
+          px: 1,
+          '&::-webkit-scrollbar': {
+            width: '6px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'rgba(0, 0, 0, 0.05)',
+            borderRadius: '3px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: gradients.primary,
+            borderRadius: '3px',
+          },
+        }}
+      >
+        <Stack spacing={1.5} sx={{ mb: 2 }}>
           {/* Show only selected node types (or all if none selected) */}
-          {(selectedNodeTypes.length === 0 ? nodeTypes : selectedNodeTypes).map((type) => (
-            <Box key={type} display="flex" alignItems="center" gap={1}>
+          {(selectedNodeTypes.length === 0 ? nodeTypes : selectedNodeTypes).map((type, index) => (
+            <Box
+              key={type}
+              display="flex"
+              alignItems="center"
+              gap={1.5}
+              sx={{
+                p: 1,
+                borderRadius: 2,
+                background: (theme) =>
+                  theme.palette.mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.02)'
+                    : 'rgba(0, 0, 0, 0.02)',
+                transition: 'all 0.2s ease',
+                animation: `${countUp} 0.3s ease-out ${index * 0.05}s backwards`,
+                '&:hover': {
+                  transform: 'translateX(4px)',
+                  background: (theme) =>
+                    theme.palette.mode === 'dark'
+                      ? 'rgba(255, 255, 255, 0.05)'
+                      : 'rgba(0, 0, 0, 0.05)',
+                },
+              }}
+            >
               <Box
                 sx={{
-                  width: 16,
-                  height: 16,
+                  width: 20,
+                  height: 20,
                   borderRadius: '50%',
                   bgcolor: nodeTypeColors.get(type),
                   flexShrink: 0,
+                  boxShadow: `0 2px 8px ${nodeTypeColors.get(type)}40`,
                 }}
               />
-              <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
+              <Typography variant="body2" sx={{ wordBreak: 'break-word', fontWeight: 600 }}>
                 {type}
               </Typography>
             </Box>
@@ -626,28 +676,82 @@ const GraphControls: React.FC<GraphControlsProps> = ({
 
           {/* Proposed new indicator - only show if proposed changes are visible */}
           {showProposed && (
-            <Box display="flex" alignItems="center" gap={1}>
+            <Box
+              display="flex"
+              alignItems="center"
+              gap={1.5}
+              sx={{
+                p: 1,
+                borderRadius: 2,
+                background: `${vibrantColors.boldGreen}15`,
+                border: `2px solid ${vibrantColors.boldGreen}`,
+              }}
+            >
               <Box
                 sx={{
-                  width: 16,
-                  height: 16,
+                  width: 20,
+                  height: 20,
                   borderRadius: '50%',
-                  bgcolor: 'success.main',
-                  border: '2px solid',
-                  borderColor: 'success.dark',
+                  background: gradients.success,
+                  border: '2px solid white',
                   flexShrink: 0,
+                  boxShadow: `0 2px 8px ${vibrantColors.boldGreen}40`,
+                  position: 'relative',
+                  '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: 'white',
+                  },
                 }}
               />
-              <Typography variant="body2">Proposed New</Typography>
+              <Typography variant="body2" fontWeight={700}>
+                ● Proposed New (dotted pattern)
+              </Typography>
             </Box>
           )}
         </Stack>
+        <Typography
+          variant="caption"
+          sx={{
+            mt: 2,
+            display: 'block',
+            fontStyle: 'italic',
+            opacity: 0.7,
+            textAlign: 'center',
+          }}
+        >
+          Accessibility: New items have dot patterns and thick borders for colorblind users
+        </Typography>
       </Box>
 
-      <Divider sx={{ my: 2 }} />
+      <Divider sx={{ my: 2.5 }} />
 
       {/* Reset Button */}
-      <Button variant="outlined" fullWidth startIcon={<RefreshIcon />} onClick={onResetView}>
+      <Button
+        variant="outlined"
+        fullWidth
+        startIcon={<RefreshIcon />}
+        onClick={onResetView}
+        sx={{
+          py: 1.5,
+          fontWeight: 700,
+          borderWidth: 2,
+          borderColor: vibrantColors.energeticOrange,
+          color: vibrantColors.energeticOrange,
+          '&:hover': {
+            borderWidth: 2,
+            background: `${vibrantColors.energeticOrange}15`,
+            transform: 'translateY(-2px)',
+            boxShadow: `0 4px 12px ${vibrantColors.energeticOrange}30`,
+          },
+        }}
+      >
         Reset View
       </Button>
     </Paper>

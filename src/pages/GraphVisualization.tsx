@@ -28,7 +28,12 @@ import {
   Close as CloseIcon,
   Fullscreen as FullscreenIcon,
   FullscreenExit as FullscreenExitIcon,
+  CloudDone as CloudDoneIcon,
+  Cloud as CloudIcon,
+  Dns as DnsIcon,
 } from '@mui/icons-material';
+import { keyframes } from '@mui/system';
+import { gradients, vibrantColors } from '../theme/theme';
 import GraphVisualization, { type GraphVisualizationRef } from '../components/GraphVisualization';
 import GraphControls from '../components/GraphControls';
 import NodePalette from '../components/NodePalette';
@@ -43,6 +48,17 @@ import {
   deleteEdge as apiDeleteEdge,
 } from '../services/graphApi';
 import { ChangeStatus } from '../types/graph';
+
+// Animation keyframes
+const pulse = keyframes`
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+`;
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
 
 // Helper function to calculate graph stats
 const getGraphStats = (data: GraphData): GraphStats => {
@@ -84,6 +100,12 @@ const GraphVisualizationPage: React.FC = () => {
   const [initialData, setInitialData] = useState<GraphData>({ nodes: [], edges: [] });
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [isUsingMockData, setIsUsingMockData] = useState(false);
+  const [dbMetadata, setDbMetadata] = useState<{
+    source?: string;
+    databricksEnabled?: boolean;
+    databricksError?: string | null;
+  }>({});
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -161,7 +183,11 @@ const GraphVisualizationPage: React.FC = () => {
       // Log metadata from backend (includes source database and any errors)
       if (response.metadata) {
         console.log('📊 Database Metadata:', response.metadata);
+        setDbMetadata(response.metadata);
       }
+
+      // Determine if we're using mock data
+      setIsUsingMockData(!useBackend || response.metadata?.source === 'Mock Data');
 
       // Build message with metadata
       let message = `Loaded ${response.nodes.length} nodes and ${response.edges.length} edges`;
@@ -554,7 +580,7 @@ const GraphVisualizationPage: React.FC = () => {
                   sx={{
                     color: 'white',
                     fontWeight: 700,
-                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                    textShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
                   }}
                 >
                   Graph Editor
@@ -562,10 +588,12 @@ const GraphVisualizationPage: React.FC = () => {
                 <Typography
                   variant="body2"
                   sx={{
-                    color: 'rgba(255, 255, 255, 0.9)',
+                    color: 'white',
+                    fontWeight: 500,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1,
+                    textShadow: '0 1px 4px rgba(0, 0, 0, 0.2)',
                   }}
                 >
                   {dbMetadata.databricksEnabled ? (
@@ -825,9 +853,34 @@ const GraphVisualizationPage: React.FC = () => {
                 alignItems="center"
                 sx={{ ml: isFullscreen ? 'auto' : 0 }}
               >
-                <Chip label={`${stats.existingNodes} Existing`} color="primary" size="small" />
+                <Chip
+                  icon={
+                    <CheckCircleIcon
+                      sx={{ fontSize: '16px !important', color: 'white !important' }}
+                    />
+                  }
+                  label={`${stats.existingNodes} Existing`}
+                  size="small"
+                  sx={{
+                    background: gradients.primary,
+                    color: 'white',
+                    fontWeight: 700,
+                    '& .MuiChip-icon': {
+                      color: 'white',
+                    },
+                  }}
+                />
                 {hasProposedChanges && (
-                  <Chip label={`${stats.newNodes} New`} color="success" size="small" />
+                  <Chip
+                    label={`● ${stats.newNodes} New`}
+                    size="small"
+                    sx={{
+                      background: gradients.success,
+                      color: 'white',
+                      fontWeight: 700,
+                      animation: `${pulse} 2s ease-in-out infinite`,
+                    }}
+                  />
                 )}
                 <Tooltip title={isFullscreen ? 'Exit Fullscreen (Esc or F)' : 'Fullscreen (F)'}>
                   <IconButton

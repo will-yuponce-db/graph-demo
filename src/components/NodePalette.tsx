@@ -1,6 +1,7 @@
 import React from 'react';
-import { Paper, Typography, Box, Button, Stack, Divider, Tooltip, keyframes } from '@mui/material';
+import { Paper, Typography, Box, Button, Stack, Divider, Tooltip } from '@mui/material';
 import { AddCircleOutline as AddNodeIcon, Link as LinkIcon } from '@mui/icons-material';
+import { keyframes } from '@mui/system';
 import { gradients, vibrantColors } from '../theme/theme';
 
 // Animation keyframes
