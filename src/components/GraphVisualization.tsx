@@ -426,6 +426,11 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
         const end = link.target;
         const isNew = link.status === ChangeStatus.NEW;
 
+        // Validate coordinates are finite numbers before drawing
+        if (!isFinite(start.x) || !isFinite(start.y) || !isFinite(end.x) || !isFinite(end.y)) {
+          return; // Skip rendering if coordinates are invalid
+        }
+
         // Create gradient for the link
         const gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
         const linkColor = getLinkColor(link);
