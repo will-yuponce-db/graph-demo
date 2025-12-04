@@ -216,6 +216,11 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
     const paintNode = useCallback(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (node: any, ctx: CanvasRenderingContext2D) => {
+        // Validate coordinates are finite numbers before drawing
+        if (!isFinite(node.x) || !isFinite(node.y)) {
+          return; // Skip rendering if coordinates are invalid
+        }
+
         const label = node.name;
         const fontSize = 12;
         const nodeRadius = node.val || 5;
