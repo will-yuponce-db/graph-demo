@@ -1,10 +1,30 @@
-import { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import {
+  useRef,
+  useCallback,
+  useEffect,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+  useMemo,
+} from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { Box, Paper, Typography, useTheme, IconButton, Stack, Tooltip } from '@mui/material';
 import { ZoomIn as ZoomInIcon, ZoomOut as ZoomOutIcon } from '@mui/icons-material';
 import type { GraphData, ForceGraphData, ForceGraphNode, ForceGraphLink } from '../types/graph';
 import { ChangeStatus, getColorForType } from '../types/graph';
 import { vibrantColors } from '../theme/theme';
+
+// Throttle helper for hover events
+function throttle<T extends (...args: Parameters<T>) => void>(fn: T, delay: number): T {
+  let lastCall = 0;
+  return ((...args: Parameters<T>) => {
+    const now = Date.now();
+    if (now - lastCall >= delay) {
+      lastCall = now;
+      fn(...args);
+    }
+  }) as T;
+}
 
 interface GraphVisualizationProps {
   data: GraphData;
@@ -174,9 +194,14 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
       [graphData.nodes]
     );
 
-    const handleNodeHover = useCallback((node: ForceGraphNode | null) => {
-      setHoveredNode(node);
-    }, []);
+    // Throttle hover updates to reduce re-renders (especially important when labels are on)
+    const handleNodeHover = useMemo(
+      () =>
+        throttle((node: ForceGraphNode | null) => {
+          setHoveredNode(node);
+        }, 50), // 50ms throttle - still responsive but reduces updates
+      []
+    );
 
     const handleNodeClick = useCallback(
       (node: ForceGraphNode) => {
@@ -218,22 +243,39 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
       (node: any, ctx: CanvasRenderingContext2D) => {
         // Validate coordinates are finite numbers before drawing
         if (!isFinite(node.x) || !isFinite(node.y)) {
-          return; // Skip rendering if coordinates are invalid
+          return;
         }
 
-        const label = node.name;
-        const fontSize = 12;
         const nodeRadius = node.val || 5;
         const nodeColor = getNodeColor(node);
-
-        // Determine states
-        const isHovered = hoveredNode && hoveredNode.id === node.id;
-        const isSelected = selectedNodeId && selectedNodeId === node.id;
-        const isEdgeCreateSource = edgeCreateMode && edgeCreateSourceId === node.id;
         const isNew = node.status === ChangeStatus.NEW;
 
-        // Draw glow effect for hovered, selected, or new nodes
-        if (isHovered || isSelected || isNew || isEdgeCreateSource) {
+        // Determine states - but skip hover check when labels are on for performance
+        const isSelected = selectedNodeId && selectedNodeId === node.id;
+        const isEdgeCreateSource = edgeCreateMode && edgeCreateSourceId === node.id;
+        // Only check hover state when labels are OFF (expensive to track per-node)
+        const isHovered = !showNodeLabels && hoveredNode && hoveredNode.id === node.id;
+        const isSpecialNode = isHovered || isSelected || isEdgeCreateSource;
+
+        // PERFORMANCE MODE: When labels are on, use ultra-minimal rendering
+        if (showNodeLabels && !isSpecialNode && !isNew) {
+          // Just draw a simple circle - no gradients, no effects
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
+          ctx.fillStyle = nodeColor;
+          ctx.fill();
+
+          // Draw label text directly - no background box for performance
+          ctx.fillStyle = theme.palette.mode === 'dark' ? '#e2e8f0' : '#1e293b';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(node.name, node.x, node.y + nodeRadius + 10);
+          return;
+        }
+
+        // FULL RENDERING: When labels are off or for special nodes
+        // Draw glow effect only for special or new nodes
+        if (isSpecialNode || isNew) {
           const glowRadius = nodeRadius + (isHovered ? 8 : 6);
           const gradient = ctx.createRadialGradient(
             node.x,
@@ -264,115 +306,41 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
           ctx.fill();
         }
 
-        // Draw main node circle with subtle gradient
-        const nodeGradient = ctx.createRadialGradient(
-          node.x - nodeRadius * 0.3,
-          node.y - nodeRadius * 0.3,
-          0,
-          node.x,
-          node.y,
-          nodeRadius
-        );
-        nodeGradient.addColorStop(0, nodeColor);
-        nodeGradient.addColorStop(1, nodeColor + 'CC'); // Slightly darker at edges
-
+        // Draw node circle
         ctx.beginPath();
         ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
-        ctx.fillStyle = nodeGradient;
+        ctx.fillStyle = nodeColor;
         ctx.fill();
 
-        // Add visual indicators for new nodes (colorblind friendly)
+        // New node indicator
         if (isNew) {
-          // Thick border
           ctx.strokeStyle = vibrantColors.emerald;
           ctx.lineWidth = 3;
           ctx.stroke();
-
-          // Add dot pattern for additional distinction (not relying on color alone)
-          ctx.save();
-          ctx.clip(); // Clip to circle shape
-          const dotSize = 1.5;
-          const dotSpacing = 4;
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-          for (let dx = -nodeRadius; dx <= nodeRadius; dx += dotSpacing) {
-            for (let dy = -nodeRadius; dy <= nodeRadius; dy += dotSpacing) {
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              if (distance < nodeRadius - 1) {
-                ctx.beginPath();
-                ctx.arc(node.x + dx, node.y + dy, dotSize, 0, 2 * Math.PI);
-                ctx.fill();
-              }
-            }
-          }
-          ctx.restore();
         }
 
-        // Determine if label should be shown
-        const shouldShowLabel = showNodeLabels || isHovered || isSelected || isEdgeCreateSource;
-
-        // Draw label only when appropriate
-        if (shouldShowLabel) {
-          ctx.font = `bold ${fontSize}px Sans-Serif`;
+        // Draw label for special nodes or when labels are off but hovering
+        if (isSpecialNode) {
+          ctx.font = 'bold 12px sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
+          const labelY = node.y + nodeRadius + 12;
 
-          // Measure text for background
-          const textMetrics = ctx.measureText(label);
-          const textWidth = textMetrics.width;
-          const textHeight = fontSize;
-          const padding = 6;
-          const labelY = node.y + nodeRadius + 14;
-          const borderRadius = 6;
-
-          // Draw rounded background with enhanced styling
+          // Background for special nodes only
+          const textWidth = ctx.measureText(node.name).width;
           ctx.fillStyle =
-            theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-          ctx.shadowBlur = 8;
-          ctx.shadowOffsetY = 2;
+            theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+          ctx.fillRect(node.x - textWidth / 2 - 4, labelY - 8, textWidth + 8, 16);
 
-          const rectX = node.x - textWidth / 2 - padding;
-          const rectY = labelY - textHeight / 2 - padding;
-          const rectWidth = textWidth + padding * 2;
-          const rectHeight = textHeight + padding * 2;
-
-          ctx.beginPath();
-          ctx.moveTo(rectX + borderRadius, rectY);
-          ctx.lineTo(rectX + rectWidth - borderRadius, rectY);
-          ctx.quadraticCurveTo(rectX + rectWidth, rectY, rectX + rectWidth, rectY + borderRadius);
-          ctx.lineTo(rectX + rectWidth, rectY + rectHeight - borderRadius);
-          ctx.quadraticCurveTo(
-            rectX + rectWidth,
-            rectY + rectHeight,
-            rectX + rectWidth - borderRadius,
-            rectY + rectHeight
-          );
-          ctx.lineTo(rectX + borderRadius, rectY + rectHeight);
-          ctx.quadraticCurveTo(rectX, rectY + rectHeight, rectX, rectY + rectHeight - borderRadius);
-          ctx.lineTo(rectX, rectY + borderRadius);
-          ctx.quadraticCurveTo(rectX, rectY, rectX + borderRadius, rectY);
-          ctx.closePath();
-          ctx.fill();
-
-          // Reset shadow
-          ctx.shadowColor = 'transparent';
-          ctx.shadowBlur = 0;
-          ctx.shadowOffsetY = 0;
-
-          // Draw text with vibrant color based on state
-          if (isNew) {
-            ctx.fillStyle = vibrantColors.boldGreen;
-          } else if (isSelected) {
-            ctx.fillStyle = vibrantColors.vibrantPurple;
-          } else if (isHovered) {
-            ctx.fillStyle = vibrantColors.electricBlue;
-          } else {
-            ctx.fillStyle = theme.palette.text.primary;
-          }
-          ctx.fillText(label, node.x, labelY);
+          ctx.fillStyle = isNew
+            ? vibrantColors.boldGreen
+            : isSelected
+              ? vibrantColors.vibrantPurple
+              : vibrantColors.electricBlue;
+          ctx.fillText(node.name, node.x, labelY);
         }
 
-        // Highlight hovered node with vibrant ring
+        // Highlight rings for special nodes
         if (isHovered) {
           ctx.beginPath();
           ctx.arc(node.x, node.y, nodeRadius + 3, 0, 2 * Math.PI);
@@ -381,35 +349,19 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
           ctx.stroke();
         }
 
-        // Highlight selected node with vibrant ring
         if (isSelected) {
           ctx.beginPath();
           ctx.arc(node.x, node.y, nodeRadius + 4, 0, 2 * Math.PI);
           ctx.strokeStyle = vibrantColors.hotPink;
           ctx.lineWidth = 3;
           ctx.stroke();
-
-          // Add outer ring for emphasis
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, nodeRadius + 6, 0, 2 * Math.PI);
-          ctx.strokeStyle = vibrantColors.vibrantPurple;
-          ctx.lineWidth = 2;
-          ctx.stroke();
         }
 
-        // Highlight source node in edge create mode
         if (isEdgeCreateSource) {
           ctx.beginPath();
           ctx.arc(node.x, node.y, nodeRadius + 5, 0, 2 * Math.PI);
           ctx.strokeStyle = vibrantColors.boldGreen;
           ctx.lineWidth = 4;
-          ctx.stroke();
-
-          // Pulsing effect with second ring
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, nodeRadius + 8, 0, 2 * Math.PI);
-          ctx.strokeStyle = vibrantColors.emerald;
-          ctx.lineWidth = 2;
           ctx.stroke();
         }
       },
@@ -429,48 +381,58 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
       (link: any, ctx: CanvasRenderingContext2D) => {
         const start = link.source;
         const end = link.target;
-        const isNew = link.status === ChangeStatus.NEW;
 
-        // Validate coordinates are finite numbers before drawing
+        // Validate coordinates
         if (!isFinite(start.x) || !isFinite(start.y) || !isFinite(end.x) || !isFinite(end.y)) {
-          return; // Skip rendering if coordinates are invalid
+          return;
         }
 
-        // Create gradient for the link
-        const gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+        const isNew = link.status === ChangeStatus.NEW;
         const linkColor = getLinkColor(link);
 
-        if (isNew) {
-          gradient.addColorStop(0, vibrantColors.boldGreen);
-          gradient.addColorStop(1, vibrantColors.emerald);
-        } else {
-          gradient.addColorStop(0, linkColor);
-          gradient.addColorStop(1, linkColor);
+        // PERFORMANCE MODE: When edge labels are on, use ultra-minimal rendering
+        if (showEdgeLabels && !isNew) {
+          // Simple line - no arrows, minimal styling
+          ctx.beginPath();
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(end.x, end.y);
+          ctx.strokeStyle = linkColor;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Draw label text directly - no background for performance
+          if (link.relationshipType) {
+            const midX = (start.x + end.x) / 2;
+            const midY = (start.y + end.y) / 2;
+            ctx.fillStyle = theme.palette.mode === 'dark' ? '#94a3b8' : '#64748b';
+            ctx.font = '9px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(link.relationshipType, midX, midY);
+          }
+          return;
         }
 
-        // Draw link with enhanced styling
+        // FULL RENDERING: When edge labels are off or for new links
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
-        ctx.strokeStyle = gradient;
-        ctx.lineWidth = isNew ? 3 : 2;
 
         if (isNew) {
+          ctx.strokeStyle = vibrantColors.boldGreen;
+          ctx.lineWidth = 3;
           ctx.setLineDash([8, 4]);
-          ctx.lineCap = 'round';
         } else {
+          ctx.strokeStyle = linkColor;
+          ctx.lineWidth = 2;
           ctx.setLineDash([]);
         }
 
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.lineCap = 'butt';
 
-        // Draw arrow with better visibility
+        // Draw arrow
         const arrowLength = isNew ? 10 : 8;
         const angle = Math.atan2(end.y - start.y, end.x - start.x);
-
-        // Draw enhanced arrow
         const arrowX = end.x - (end.val || 5) * Math.cos(angle);
         const arrowY = end.y - (end.val || 5) * Math.sin(angle);
 
@@ -485,70 +447,17 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
           arrowY - arrowLength * Math.sin(angle + Math.PI / 7)
         );
         ctx.closePath();
-
-        if (isNew) {
-          ctx.fillStyle = vibrantColors.boldGreen;
-        } else {
-          ctx.fillStyle = linkColor;
-        }
+        ctx.fillStyle = isNew ? vibrantColors.boldGreen : linkColor;
         ctx.fill();
 
-        // Draw edge label if enabled
-        if (showEdgeLabels && link.relationshipType) {
+        // Draw edge label for new links when labels are on
+        if (showEdgeLabels && isNew && link.relationshipType) {
           const midX = (start.x + end.x) / 2;
           const midY = (start.y + end.y) / 2;
-          const label = link.relationshipType;
-          const fontSize = 11;
-
-          ctx.font = `bold ${fontSize}px Sans-Serif`;
+          ctx.fillStyle = vibrantColors.emerald;
+          ctx.font = 'bold 10px sans-serif';
           ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-
-          // Measure text for background
-          const textMetrics = ctx.measureText(label);
-          const textWidth = textMetrics.width;
-          const textHeight = fontSize;
-          const padding = 5;
-          const borderRadius = 4;
-
-          // Draw rounded background with shadow
-          ctx.fillStyle =
-            theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-          ctx.shadowBlur = 6;
-          ctx.shadowOffsetY = 2;
-
-          const rectX = midX - textWidth / 2 - padding;
-          const rectY = midY - textHeight / 2 - padding;
-          const rectWidth = textWidth + padding * 2;
-          const rectHeight = textHeight + padding * 2;
-
-          ctx.beginPath();
-          ctx.moveTo(rectX + borderRadius, rectY);
-          ctx.lineTo(rectX + rectWidth - borderRadius, rectY);
-          ctx.quadraticCurveTo(rectX + rectWidth, rectY, rectX + rectWidth, rectY + borderRadius);
-          ctx.lineTo(rectX + rectWidth, rectY + rectHeight - borderRadius);
-          ctx.quadraticCurveTo(
-            rectX + rectWidth,
-            rectY + rectHeight,
-            rectX + rectWidth - borderRadius,
-            rectY + rectHeight
-          );
-          ctx.lineTo(rectX + borderRadius, rectY + rectHeight);
-          ctx.quadraticCurveTo(rectX, rectY + rectHeight, rectX, rectY + rectHeight - borderRadius);
-          ctx.lineTo(rectX, rectY + borderRadius);
-          ctx.quadraticCurveTo(rectX, rectY, rectX + borderRadius, rectY);
-          ctx.closePath();
-          ctx.fill();
-
-          // Reset shadow
-          ctx.shadowColor = 'transparent';
-          ctx.shadowBlur = 0;
-          ctx.shadowOffsetY = 0;
-
-          // Draw text with vibrant color for new edges
-          ctx.fillStyle = isNew ? vibrantColors.emerald : theme.palette.text.secondary;
-          ctx.fillText(label, midX, midY);
+          ctx.fillText(link.relationshipType, midX, midY);
         }
       },
       [getLinkColor, showEdgeLabels, theme]
@@ -593,13 +502,16 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
             backgroundColor="transparent"
             nodeCanvasObject={paintNode}
             linkCanvasObject={paintLink}
-            onNodeHover={handleNodeHover}
+            // Disable hover tracking when labels are on for better performance
+            onNodeHover={showNodeLabels && showEdgeLabels ? undefined : handleNodeHover}
             onNodeClick={handleNodeClick}
             onLinkClick={handleLinkClick}
             enableNodeDrag={true}
             enableZoomInteraction={true}
             enablePanInteraction={true}
-            cooldownTicks={100}
+            // Faster simulation settling
+            cooldownTicks={50}
+            warmupTicks={showNodeLabels || showEdgeLabels ? 100 : 0}
             onEngineStop={() => {
               // Only zoom to fit on initial load, not on every simulation stop
               if (!hasInitialized && graphData.nodes.length > 0) {
@@ -607,8 +519,9 @@ const GraphVisualization = forwardRef<GraphVisualizationRef, GraphVisualizationP
                 setHasInitialized(true);
               }
             }}
-            d3AlphaDecay={0.02}
-            d3VelocityDecay={0.3}
+            // Higher decay = simulation stops faster
+            d3AlphaDecay={showNodeLabels || showEdgeLabels ? 0.05 : 0.02}
+            d3VelocityDecay={showNodeLabels || showEdgeLabels ? 0.5 : 0.3}
           />
         </Box>
 
